@@ -1,0 +1,5 @@
+'use client';
+import {useState} from 'react';
+import type {Product} from '../../data';
+const STORAGE='thanghestore-demo-cart-v1';
+export default function ProductPurchase({product}:{product:Product}){const [size,setSize]=useState<number|null>(null);const [added,setAdded]=useState(false);function add(){if(size===null)return;try{const raw=JSON.parse(localStorage.getItem(STORAGE)||'[]');const cart:Array<{id:number,size:number,qty:number}>=Array.isArray(raw)?raw:[];const existing=cart.find(x=>x.id===product.id&&x.size===size);if(existing)existing.qty+=1;else cart.push({id:product.id,size,qty:1});localStorage.setItem(STORAGE,JSON.stringify(cart));setAdded(true)}catch{setAdded(false)}}return <div className="purchase"><strong>CHỌN SIZE EU</strong><div className="sizes">{product.sizes.map(n=><button type="button" key={n} className={size===n?'selected':''} onClick={()=>{setSize(n);setAdded(false)}}>{n}</button>)}</div><button className="solidButton" disabled={size===null} onClick={add}>THÊM VÀO GIỎ DEMO</button>{added&&<div className="purchaseSuccess">Đã thêm size {size} vào giỏ trên thiết bị này. <a href="/">Về trang chủ để xem giỏ hàng →</a></div>}</div>}
