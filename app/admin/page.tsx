@@ -1,7 +1,11 @@
  
 'use client';
 
-import { useState, type FormEvent } from 'react';
+ 
+import { useEffect, useState, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@supabase/supabase-js';
+
 
 type Product = {
   id: number;
@@ -39,6 +43,10 @@ const money = (value: number) =>
   }).format(value);
 
 export default function AdminPage() {
+  const router = useRouter();
+  const [adminStatus, setAdminStatus] =
+    useState<'checking' | 'allowed'>('checking');
+
   const [name, setName] = useState('');
   const [brand, setBrand] = useState('Nike');
   const [price, setPrice] = useState('');
@@ -48,6 +56,72 @@ export default function AdminPage() {
   const [stock, setStock] = useState('5');
   const [products, setProducts] = useState<Product[]>([]);
   const [notice, setNotice] = useState('');
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function checkAdmin() {
+      try {
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const key =
+          process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+        if (!url || !key) {
+          throw new Error('Supabase configuration missing');
+        }
+
+        const supabase = createClient(url, key);
+
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
+
+        if (userError || !user) {
+          throw new Error('Not authenticated');
+        }
+
+        const { data: admin, error: adminError } =
+          await supabase
+            .from('admin_users')
+            .select('user_id')
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+        if (adminError || !admin) {
+          throw new Error('Not an administrator');
+        }
+
+        if (mounted) {
+          setAdminStatus('allowed');
+        }
+      } catch {
+        if (mounted) {
+          router.replace('/admin/dang-nhap');
+        }
+      }
+    }
+
+    void checkAdmin();
+
+    return () => {
+      mounted = false;
+    };
+  }, [router]);
+
+  if (adminStatus !== 'allowed') {
+    return (
+      <main style={{
+        minHeight: '100vh',
+        display: 'grid',
+        placeItems: 'center',
+        background: '#f1f5f9',
+        color: '#10263b',
+      }}>
+        Đang kiểm tra quyền quản trị...
+      </main>
+    );
+  }
 
   function addProduct(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
