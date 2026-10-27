@@ -9,9 +9,11 @@ const RESET_URL =
   'https://thanghe-store-git-v3-supabase-test-thanghesneaker-3400.vercel.app/admin/dat-mat-khau';
 
 export default function DatMatKhauPage() {
-  const [client, setClient] = useState<
-    ReturnType<typeof createClient> | null
-  >(null);
+ 
+const [client, setClient] = useState<
+  Pick<ReturnType<typeof createClient>, 'auth'> | null
+>(null);
+
 
   const [checking, setChecking] = useState(true);
   const [hasSession, setHasSession] = useState(false);
