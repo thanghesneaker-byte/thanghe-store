@@ -142,7 +142,7 @@ export default function AdminPage() {
           image_url,
           description,
           product_variants (
-          id
+          id,
             size,
             stock_quantity
           )
