@@ -20,7 +20,7 @@ variants?: {
   size: string;
   stock_quantity: number;
 }[];
-
+isActive: boolean;
   stock: number;
 };
 
@@ -141,6 +141,9 @@ export default function AdminPage() {
           price_vnd,
           image_url,
           description,
+          
+is_active,
+
           product_variants (
           id,
             size,
@@ -157,6 +160,10 @@ export default function AdminPage() {
       }
 
       type ProductRow = {
+      
+       
+is_active: boolean;
+
         id: string;
         name: string;
         brand: string;
@@ -179,6 +186,9 @@ export default function AdminPage() {
         price: Number(row.price_vnd),
         imageUrl: row.image_url ?? '',
         description: row.description ?? '',
+       
+isActive: row.is_active,
+
         sizes: (row.product_variants ?? []).map((v) => v.size),
        
 variants: row.product_variants ?? [],
@@ -454,6 +464,76 @@ async function updateProductDetails(product: Product) {
   } catch (error) {
     setNotice(
       'Lỗi cập nhật sản phẩm: ' +
+        (error instanceof Error ? error.message : 'Lỗi không xác định')
+    );
+  }
+}
+
+async function toggleProductVisibility(product: Product) {
+  const nextActive = !product.isActive;
+
+  const confirmed = window.confirm(
+    nextActive
+      ? `Hiển thị lại sản phẩm "${product.name}" trên website?`
+      : `Ẩn sản phẩm "${product.name}" khỏi website?`
+  );
+
+  if (!confirmed) return;
+
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+    if (!url || !key) {
+      throw new Error('Thiếu cấu hình Supabase.');
+    }
+
+    const supabase = createClient(url, key);
+
+    const { data: auth, error: authError } =
+      await supabase.auth.getUser();
+
+    if (authError || !auth.user) {
+      throw new Error('Vui lòng đăng nhập lại.');
+    }
+
+    const { data: admin, error: adminError } = await supabase
+      .from('admin_users')
+      .select('user_id')
+      .eq('user_id', auth.user.id)
+      .maybeSingle();
+
+    if (adminError || !admin) {
+      throw new Error('Tài khoản không có quyền quản trị.');
+    }
+
+    const { data, error } = await supabase
+      .from('products')
+      .update({ is_active: nextActive })
+      .eq('id', product.id)
+      .select('id, is_active')
+      .single();
+
+    if (error || !data) {
+      throw new Error(error?.message || 'Không thể cập nhật trạng thái.');
+    }
+
+    setProducts((previous) =>
+      previous.map((item) =>
+        item.id === product.id
+          ? { ...item, isActive: data.is_active }
+          : item
+      )
+    );
+
+    setNotice(
+      nextActive
+        ? 'Đã bật hiển thị sản phẩm.'
+        : 'Đã ẩn sản phẩm thành công.'
+    );
+  } catch (error) {
+    setNotice(
+      'Lỗi cập nhật trạng thái: ' +
         (error instanceof Error ? error.message : 'Lỗi không xác định')
     );
   }
@@ -863,7 +943,25 @@ async function addProduct(event: FormEvent<HTMLFormElement>) {
 >
   SỬA THÔNG TIN
 </button>
-              
+ 
+<button
+  type="button"
+  onClick={() => void toggleProductVisibility(product)}
+  style={{
+    marginLeft: 8,
+    marginTop: 12,
+    padding: '10px 16px',
+    background: product.isActive ? '#dc2626' : '#16a34a',
+    color: 'white',
+    border: 'none',
+    borderRadius: 8,
+    cursor: 'pointer',
+    fontWeight: 'bold',
+  }}
+>
+  {product.isActive ? 'ẨN SẢN PHẨM' : 'HIỆN SẢN PHẨM'}
+</button>
+             
 <div
   style={{
     display: 'flex',
