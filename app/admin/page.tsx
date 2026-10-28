@@ -488,7 +488,7 @@ async function addProduct(event: FormEvent<HTMLFormElement>) {
               </label>
 
               <label>
-                <strong>Số lượng tồn kho demo</strong>
+                <strong> Số lượng tồn kho mỗi size</strong>
                 <input
                   style={inputStyle}
                   type="number"
