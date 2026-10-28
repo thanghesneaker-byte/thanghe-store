@@ -15,6 +15,12 @@ type Product = {
   imageUrl: string;
   description: string;
   sizes: string[];
+variants?: {
+  id: string;
+  size: string;
+  stock_quantity: number;
+}[];
+
   stock: number;
 };
 
@@ -136,6 +142,7 @@ export default function AdminPage() {
           image_url,
           description,
           product_variants (
+          id
             size,
             stock_quantity
           )
@@ -157,6 +164,7 @@ export default function AdminPage() {
         image_url: string | null;
         description: string;
         product_variants: {
+         id: string;
           size: string;
           stock_quantity: number;
         }[];
@@ -172,6 +180,9 @@ export default function AdminPage() {
         imageUrl: row.image_url ?? '',
         description: row.description ?? '',
         sizes: (row.product_variants ?? []).map((v) => v.size),
+       
+variants: row.product_variants ?? [],
+
         stock: (row.product_variants ?? []).reduce(
           (total, v) => total + v.stock_quantity,
           0
@@ -261,6 +272,95 @@ async function updateProductPrice(product: Product) {
     setNotice(
       'Không thể cập nhật giá: ' +
       (error instanceof Error ? error.message : 'Lỗi không xác định')
+    );
+  }
+}
+
+async function updateVariantStock(
+  product: Product,
+  variant: NonNullable<Product['variants']>[number]
+) {
+  const input = window.prompt(
+    `Nhập tồn kho mới cho ${product.name} - Size ${variant.size}:`,
+    String(variant.stock_quantity)
+  );
+
+  if (input === null) return;
+
+  if (input.trim() === '') {
+    setNotice('Vui lòng nhập số lượng tồn kho.');
+    return;
+  }
+
+  const newStock = Number(input);
+
+  if (!Number.isSafeInteger(newStock) || newStock < 0) {
+    setNotice('Tồn kho phải là số nguyên không âm.');
+    return;
+  }
+
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+    if (!url || !key) {
+      throw new Error('Thiếu cấu hình Supabase.');
+    }
+
+    const supabase = createClient(url, key);
+
+    const { data: auth, error: authError } =
+      await supabase.auth.getUser();
+
+    if (authError || !auth.user) {
+      throw new Error('Vui lòng đăng nhập lại.');
+    }
+
+    const { data, error } = await supabase
+      .from('product_variants')
+      .update({ stock_quantity: newStock })
+      .eq('id', variant.id)
+      .eq('product_id', String(product.id))
+      .select('id')
+      .single();
+
+    if (error || !data) {
+      throw new Error(
+        error?.message || 'Không thể cập nhật tồn kho.'
+      );
+    }
+
+    setProducts((previous) =>
+      previous.map((item) => {
+        if (item.id !== product.id) return item;
+
+        const updatedVariants = (item.variants ?? []).map(
+          (v) =>
+            v.id === variant.id
+              ? { ...v, stock_quantity: newStock }
+              : v
+        );
+
+        return {
+          ...item,
+          variants: updatedVariants,
+          stock: updatedVariants.reduce(
+            (total, v) => total + v.stock_quantity,
+            0
+          ),
+        };
+      })
+    );
+
+    setNotice(
+      `Đã cập nhật size ${variant.size} thành ${newStock} đôi.`
+    );
+  } catch (error) {
+    setNotice(
+      'Lỗi cập nhật tồn kho: ' +
+        (error instanceof Error
+          ? error.message
+          : 'Lỗi không xác định')
     );
   }
 }
@@ -651,6 +751,35 @@ async function addProduct(event: FormEvent<HTMLFormElement>) {
 >
   SỬA GIÁ
 </button>
+                   
+<div
+  style={{
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  }}
+>
+  {(product.variants ?? []).map((variant) => (
+    <button
+      key={variant.id}
+      type="button"
+      onClick={() => void updateVariantStock(product, variant)}
+      style={{
+        padding: '10px 12px',
+        background: '#ffffff',
+        color: '#10263b',
+        border: '1px solid #cbd5e1',
+        borderRadius: 8,
+        cursor: 'pointer',
+        fontWeight: 'bold',
+      }}
+    >
+      Size {variant.size}: {variant.stock_quantity} đôi - SỬA
+    </button>
+  ))}
+</div>
+
 
 
                      
