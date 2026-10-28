@@ -8,7 +8,7 @@ import { createClient } from '@supabase/supabase-js';
 
 
 type Product = {
-  id: number;
+ id: string | number;
   name: string;
   brand: string;
   price: number;
@@ -108,6 +108,86 @@ export default function AdminPage() {
       mounted = false;
     };
   }, [router]);
+
+
+  useEffect(() => {
+    if (adminStatus !== 'allowed') return;
+
+    let cancelled = false;
+
+    async function loadProducts() {
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+      if (!url || !key) {
+        setNotice('Thiếu cấu hình Supabase.');
+        return;
+      }
+
+      const supabase = createClient(url, key);
+
+      const { data, error } = await supabase
+        .from('products')
+        .select(`
+          id,
+          name,
+          brand,
+          price_vnd,
+          image_url,
+          description,
+          product_variants (
+            size,
+            stock_quantity
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (cancelled) return;
+
+      if (error) {
+        setNotice('Lỗi tải sản phẩm: ' + error.message);
+        return;
+      }
+
+      type ProductRow = {
+        id: string;
+        name: string;
+        brand: string;
+        price_vnd: number;
+        image_url: string | null;
+        description: string;
+        product_variants: {
+          size: string;
+          stock_quantity: number;
+        }[];
+      };
+
+      const rows = (data ?? []) as unknown as ProductRow[];
+
+      const productsFromDB: Product[] = rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        brand: row.brand,
+        price: Number(row.price_vnd),
+        imageUrl: row.image_url ?? '',
+        description: row.description ?? '',
+        sizes: (row.product_variants ?? []).map((v) => v.size),
+        stock: (row.product_variants ?? []).reduce(
+          (total, v) => total + v.stock_quantity,
+          0
+        ),
+      }));
+
+      setProducts(productsFromDB);
+    }
+
+    void loadProducts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [adminStatus]);
+
 
   if (adminStatus !== 'allowed') {
     return (
@@ -323,7 +403,7 @@ async function addProduct(event: FormEvent<HTMLFormElement>) {
             fontSize: 13,
             fontWeight: 'bold',
           }}>
-            BẢN DEMO - CHƯA LƯU DỮ LIỆU
+            QUẢN LÝ SẢN PHẨM - SUPABASE
           </span>
         </header>
 
@@ -439,7 +519,7 @@ async function addProduct(event: FormEvent<HTMLFormElement>) {
                 fontWeight: 'bold',
                 cursor: 'pointer',
               }}>
-                + THÊM SẢN PHẨM DEMO
+               + LƯU SẢN PHẨM VÀO SUPABASE
               </button>
 
               {notice && (
@@ -451,7 +531,7 @@ async function addProduct(event: FormEvent<HTMLFormElement>) {
           </section>
 
           <section style={cardStyle}>
-            <h2>Danh sách sản phẩm demo</h2>
+            <h2>Danh sách sản phẩm Supabase</h2>
             <p style={{ color: '#64748b' }}>
               Số sản phẩm trong phiên: {products.length}
             </p>
@@ -491,25 +571,11 @@ async function addProduct(event: FormEvent<HTMLFormElement>) {
                     <p>Thương hiệu: {product.brand}</p>
                     <p><strong>{money(product.price)}</strong></p>
                     <p>Size: {product.sizes.join(', ')}</p>
-                    <p>Tồn kho demo: {product.stock}</p>
+                   <p>Tổng tồn kho: {product.stock}</p>
                     <p>{product.description}</p>
 
-                    <button
-                      type="button"
-                      onClick={() => setProducts((previous) =>
-                        previous.filter((item) => item.id !== product.id)
-                      )}
-                      style={{
-                        padding: '10px 16px',
-                        border: '1px solid #ef4444',
-                        borderRadius: 8,
-                        background: 'white',
-                        color: '#b91c1c',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Xóa khỏi danh sách demo
-                    </button>
+                     
+                       
                   </article>
                 ))}
               </div>
@@ -520,9 +586,11 @@ async function addProduct(event: FormEvent<HTMLFormElement>) {
               fontSize: 13,
               color: '#64748b',
             }}>
-              Dữ liệu demo chỉ tồn tại trong bộ nhớ của trang.
-              Tải lại trang sẽ làm mất danh sách thử nghiệm.
-              Chưa có thao tác ghi dữ liệu vào Supabase.
+               
+Danh sách sản phẩm được tải từ Supabase.
+Dữ liệu được lưu trong cơ sở dữ liệu.
+Nếu chưa thấy sản phẩm mới, hãy tải lại trang.
+
             </p>
           </section>
         </div>
