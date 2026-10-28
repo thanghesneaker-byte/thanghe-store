@@ -123,52 +123,178 @@ export default function AdminPage() {
     );
   }
 
-  function addProduct(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
 
-    const priceNumber = Number(price);
-    const stockNumber = Number(stock);
+async function addProduct(event: FormEvent<HTMLFormElement>) {
+  event.preventDefault();
 
-    if (
-      !name.trim() ||
-      !brand.trim() ||
-      !Number.isFinite(priceNumber) ||
-      priceNumber <= 0 ||
-      !Number.isInteger(stockNumber) ||
-      stockNumber < 0
-    ) {
-      setNotice('Vui lòng kiểm tra tên, thương hiệu, giá và tồn kho.');
-      return;
+  const priceNumber = Number(price);
+  const stockNumber = Number(stock);
+
+  if (
+    !name.trim() ||
+    !brand.trim() ||
+    !Number.isSafeInteger(priceNumber) ||
+    priceNumber <= 0 ||
+    !Number.isInteger(stockNumber) ||
+    stockNumber < 0
+  ) {
+    setNotice('Vui lòng kiểm tra tên, thương hiệu, giá và tồn kho.');
+    return;
+  }
+
+  const sizeList = [
+    ...new Set(
+      sizes
+        .split(/[,;\s]+/)
+        .map((size) => size.trim())
+        .filter(Boolean)
+    ),
+  ];
+
+  if (sizeList.length === 0) {
+    setNotice('Vui lòng nhập ít nhất một size.');
+    return;
+  }
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+  if (!url || !key) {
+    setNotice('Thiếu cấu hình Supabase trên Vercel.');
+    return;
+  }
+
+  const image = imageUrl.trim();
+
+  if (image && !/^https?:\/\//i.test(image)) {
+    setNotice('Đường dẫn ảnh phải bắt đầu bằng https:// hoặc http://');
+    return;
+  }
+
+  const slugBase =
+    name
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'giay';
+
+  const slug =
+    `${slugBase}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+  let createdId: string | null = null;
+
+  try {
+    setNotice('Đang lưu sản phẩm vào Supabase...');
+
+    const supabase = createClient(url, key);
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
     }
 
-    const sizeList = sizes
-      .split(/[,\s;]+/)
-      .map((size) => size.trim())
-      .filter(Boolean);
+    const { data: admin, error: adminError } =
+      await supabase
+        .from('admin_users')
+        .select('user_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-    if (sizeList.length === 0) {
-      setNotice('Vui lòng nhập ít nhất một size.');
-      return;
+    if (adminError || !admin) {
+      throw new Error('Tài khoản không có quyền quản trị.');
     }
 
-    const product: Product = {
-      id: Date.now(),
-      name: name.trim(),
-      brand: brand.trim(),
-      price: priceNumber,
-      imageUrl: imageUrl.trim(),
-      description: description.trim(),
-      sizes: sizeList,
-      stock: stockNumber,
-    };
+    // Tao san pham o che do an truoc
+    const { data: productRow, error: productError } =
+      await supabase
+        .from('products')
+        .insert({
+          slug,
+          name: name.trim(),
+          brand: brand.trim(),
+          category: 'Sneaker',
+          description: description.trim(),
+          price_vnd: priceNumber,
+          image_url: image || null,
+          is_active: false,
+        })
+        .select('id')
+        .single();
 
-    setProducts((previous) => [product, ...previous]);
+    if (productError || !productRow) {
+      throw new Error(
+        productError?.message || 'Không tạo được sản phẩm.'
+      );
+    }
+
+    const productId = String(productRow.id);
+    createdId = productId;
+
+    // Luu size va ton kho cho tung size
+    const variants = sizeList.map((size, index) => ({
+      product_id: productId,
+      sku: `${slug}-size-${index + 1}`,
+      size,
+      color: '',
+      stock_quantity: stockNumber,
+    }));
+
+    const { error: variantError } =
+      await supabase
+        .from('product_variants')
+        .insert(variants);
+
+    if (variantError) {
+      throw new Error(
+        'Lỗi lưu size: ' + variantError.message
+      );
+    }
+
+    // Chi kich hoat sau khi luu size thanh cong
+    const { data: published, error: publishError } =
+      await supabase
+        .from('products')
+        .update({ is_active: true })
+        .eq('id', productId)
+        .select('id')
+        .single();
+
+    if (publishError || !published) {
+      throw new Error(
+        publishError?.message || 'Không thể đăng bán sản phẩm.'
+      );
+    }
+
     setName('');
     setPrice('');
     setImageUrl('');
     setDescription('');
-    setNotice('Đã thêm sản phẩm vào danh sách demo. Chưa lưu Supabase.');
+
+    setNotice(
+      'Đã lưu sản phẩm vào Supabase thành công! ' +
+      'Sản phẩm đã được kích hoạt trên website thử nghiệm.'
+    );
+  } catch (error) {
+    const detail =
+      error instanceof Error
+        ? error.message
+        : 'Lỗi không xác định.';
+
+    setNotice(
+      createdId
+        ? 'Chưa hoàn tất. Sản phẩm được giữ ẩn trong Supabase. ' + detail
+        : 'Không thể lưu sản phẩm. ' + detail
+    );
   }
+}
+
 
   return (
     <main style={{
