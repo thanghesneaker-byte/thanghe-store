@@ -204,6 +204,67 @@ export default function AdminPage() {
   }
 
 
+async function updateProductPrice(product: Product) {
+  const input = window.prompt(
+    `Nhập giá mới cho ${product.name} (VNĐ):`,
+    String(product.price)
+  );
+
+  if (input === null) return;
+
+  const newPrice = Number(input.trim());
+
+  if (!Number.isSafeInteger(newPrice) || newPrice <= 0) {
+    setNotice('Giá bán phải là số nguyên lớn hơn 0.');
+    return;
+  }
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+  if (!url || !key) {
+    setNotice('Thiếu cấu hình Supabase.');
+    return;
+  }
+
+  try {
+    const supabase = createClient(url, key);
+
+    const { data: auth, error: authError } =
+      await supabase.auth.getUser();
+
+    if (authError || !auth.user) {
+      throw new Error('Vui lòng đăng nhập lại.');
+    }
+
+    const { data, error } = await supabase
+      .from('products')
+      .update({ price_vnd: newPrice })
+      .eq('id', product.id)
+      .select('id')
+      .single();
+
+    if (error || !data) {
+      throw new Error(error?.message || 'Không có quyền cập nhật.');
+    }
+
+    setProducts((previous) =>
+      previous.map((item) =>
+        item.id === product.id
+          ? { ...item, price: newPrice }
+          : item
+      )
+    );
+
+    setNotice(`Đã cập nhật giá ${product.name} thành ${money(newPrice)}.`);
+  } catch (error) {
+    setNotice(
+      'Không thể cập nhật giá: ' +
+      (error instanceof Error ? error.message : 'Lỗi không xác định')
+    );
+  }
+}
+
 async function addProduct(event: FormEvent<HTMLFormElement>) {
   event.preventDefault();
 
@@ -573,6 +634,24 @@ async function addProduct(event: FormEvent<HTMLFormElement>) {
                     <p>Size: {product.sizes.join(', ')}</p>
                    <p>Tổng tồn kho: {product.stock}</p>
                     <p>{product.description}</p>
+                   
+<button
+  type="button"
+  onClick={() => updateProductPrice(product)}
+  style={{
+    marginTop: 12,
+    padding: '10px 16px',
+    background: '#10263b',
+    color: 'white',
+    border: 'none',
+    borderRadius: 8,
+    cursor: 'pointer',
+    fontWeight: 'bold',
+  }}
+>
+  SỬA GIÁ
+</button>
+
 
                      
                        
