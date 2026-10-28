@@ -365,6 +365,100 @@ async function updateVariantStock(
   }
 }
 
+async function updateProductDetails(product: Product) {
+  const name = window.prompt('Tên sản phẩm mới:', product.name);
+  if (name === null) return;
+
+  const brand = window.prompt('Thương hiệu:', product.brand);
+  if (brand === null) return;
+
+  const description = window.prompt('Mô tả sản phẩm:', product.description);
+  if (description === null) return;
+
+  const imageUrl = window.prompt(
+    'Đường dẫn ảnh sản phẩm:',
+    product.imageUrl
+  );
+  if (imageUrl === null) return;
+
+  if (!name.trim() || !brand.trim()) {
+    setNotice('Tên và thương hiệu không được để trống.');
+    return;
+  }
+
+  const image = imageUrl.trim();
+
+  if (image && !/^https?:\/\/\S+$/i.test(image)) {
+    setNotice('Đường dẫn ảnh phải bắt đầu bằng http:// hoặc https://');
+    return;
+  }
+
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+    if (!url || !key) {
+      throw new Error('Thiếu cấu hình Supabase.');
+    }
+
+    const supabase = createClient(url, key);
+
+    const { data: auth, error: authError } =
+      await supabase.auth.getUser();
+
+    if (authError || !auth.user) {
+      throw new Error('Vui lòng đăng nhập lại.');
+    }
+
+    const { data: admin, error: adminError } = await supabase
+      .from('admin_users')
+      .select('user_id')
+      .eq('user_id', auth.user.id)
+      .maybeSingle();
+
+    if (adminError || !admin) {
+      throw new Error('Tài khoản không có quyền quản trị.');
+    }
+
+    const { data, error } = await supabase
+      .from('products')
+      .update({
+        name: name.trim(),
+        brand: brand.trim(),
+        description: description.trim(),
+        image_url: image || null,
+      })
+      .eq('id', product.id)
+      .select('id')
+      .single();
+
+    if (error || !data) {
+      throw new Error(error?.message || 'Không thể cập nhật sản phẩm.');
+    }
+
+    setProducts((previous) =>
+      previous.map((item) =>
+        item.id === product.id
+          ? {
+              ...item,
+              name: name.trim(),
+              brand: brand.trim(),
+              description: description.trim(),
+              imageUrl: image,
+            }
+          : item
+      )
+    );
+
+    setNotice('Đã cập nhật thông tin sản phẩm thành công.');
+  } catch (error) {
+    setNotice(
+      'Lỗi cập nhật sản phẩm: ' +
+        (error instanceof Error ? error.message : 'Lỗi không xác định')
+    );
+  }
+}
+
 async function addProduct(event: FormEvent<HTMLFormElement>) {
   event.preventDefault();
 
@@ -751,7 +845,25 @@ async function addProduct(event: FormEvent<HTMLFormElement>) {
 >
   SỬA GIÁ
 </button>
-                   
+     
+<button
+  type="button"
+  onClick={() => void updateProductDetails(product)}
+  style={{
+    marginLeft: 8,
+    marginTop: 12,
+    padding: '10px 16px',
+    background: '#0d9488',
+    color: 'white',
+    border: 'none',
+    borderRadius: 8,
+    cursor: 'pointer',
+    fontWeight: 'bold',
+  }}
+>
+  SỬA THÔNG TIN
+</button>
+              
 <div
   style={{
     display: 'flex',
