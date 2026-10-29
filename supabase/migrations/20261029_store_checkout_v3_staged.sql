@@ -61,6 +61,7 @@ begin
   select o.id, o.total_vnd into v_id, v_total
     from public.store_checkout_orders_v3 o where o.request_id = p_request_id;
   if found then return jsonb_build_object('id',v_id,'total_vnd',v_total,'duplicate',true); end if;
+  v_total := 0;
 
   if p_name is null or char_length(btrim(p_name)) not between 2 and 120
      or p_phone is null or p_phone !~ '^0[0-9]{9}$'
