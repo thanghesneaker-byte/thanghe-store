@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
@@ -60,11 +60,11 @@ function readableError(reason: unknown): string {
   return reason instanceof Error ? reason.message : 'Có lỗi không xác định.';
 }
 
-const card: React.CSSProperties = {
+const card: CSSProperties = {
   background: 'white', border: '1px solid #d9e4ed',
   borderRadius: 14, padding: 22,
 };
-const button: React.CSSProperties = {
+const button: CSSProperties = {
   background: '#10273c', color: 'white', border: 0, borderRadius: 8,
   fontWeight: 700, padding: '10px 15px', cursor: 'pointer',
 };
