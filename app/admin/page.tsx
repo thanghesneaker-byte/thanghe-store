@@ -62,6 +62,8 @@ export default function AdminPage() {
   const [stock, setStock] = useState('5');
   const [products, setProducts] = useState<Product[]>([]);
   const [notice, setNotice] = useState('');
+  const [uploadingNewImage, setUploadingNewImage] = useState(false);
+  const [uploadingProductId, setUploadingProductId] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -150,6 +152,7 @@ is_active,
             stock_quantity
           )
         `)
+        .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
       if (cancelled) return;
@@ -539,8 +542,132 @@ async function toggleProductVisibility(product: Product) {
   }
 }
 
+
+async function uploadImageFile(file: File): Promise<string> {
+  const types: Record<string, string> = {
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+  };
+  if (!types[file.type]) throw new Error('Chỉ chấp nhận ảnh JPG, PNG, WebP.');
+  if (file.size === 0 || file.size > 5 * 1024 * 1024) {
+    throw new Error('Dung lượng ảnh phải từ 1 byte đến 5 MB.');
+  }
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !key) throw new Error('Thiếu cấu hình Supabase.');
+  const supabase = createClient(url, key);
+  const { data: auth, error: authError } = await supabase.auth.getUser();
+  if (authError || !auth.user) throw new Error('Vui lòng đăng nhập lại.');
+  const { data: admin, error: adminError } = await supabase
+    .from('admin_users').select('user_id')
+    .eq('user_id', auth.user.id).maybeSingle();
+  if (adminError || !admin) throw new Error('Không có quyền quản trị.');
+
+  const filePath = auth.user.id + '/' + crypto.randomUUID() + '.' + types[file.type];
+  const { data: uploaded, error: uploadError } = await supabase.storage
+    .from('product-images')
+    .upload(filePath, file, {
+      contentType: file.type, cacheControl: '3600', upsert: false,
+    });
+  if (uploadError || !uploaded) {
+    throw new Error(uploadError?.message || 'Không thể tải ảnh lên.');
+  }
+
+  const { data } = supabase.storage
+    .from('product-images').getPublicUrl(uploaded.path);
+  if (!data.publicUrl) throw new Error('Không lấy được đường dẫn ảnh.');
+  return data.publicUrl;
+}
+
+async function uploadNewProductImage(file: File) {
+  setUploadingNewImage(true);
+  setNotice('Đang tải ảnh giày lên Supabase...');
+  try {
+    const publicUrl = await uploadImageFile(file);
+    setImageUrl(publicUrl);
+    setNotice('Đã tải ảnh thành công. Có thể lưu sản phẩm.');
+  } catch (error) {
+    setNotice('Lỗi tải ảnh: ' +
+      (error instanceof Error ? error.message : 'Lỗi không xác định'));
+  } finally {
+    setUploadingNewImage(false);
+  }
+}
+
+async function replaceProductImage(product: Product, file: File) {
+  setUploadingProductId(String(product.id));
+  setNotice('Đang thay ảnh cho ' + product.name + '...');
+  try {
+    const publicUrl = await uploadImageFile(file);
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    if (!url || !key) throw new Error('Thiếu cấu hình Supabase.');
+    const supabase = createClient(url, key);
+    const { data, error } = await supabase
+      .from('products')
+      .update({ image_url: publicUrl })
+      .eq('id', product.id)
+      .is('deleted_at', null)
+      .select('id')
+      .single();
+    if (error || !data) {
+      throw new Error(error?.message || 'Không thể lưu ảnh vào sản phẩm.');
+    }
+    setProducts(previous => previous.map(item =>
+      item.id === product.id ? { ...item, imageUrl: publicUrl } : item
+    ));
+    setNotice('Đã thay ảnh sản phẩm: ' + product.name);
+  } catch (error) {
+    setNotice('Lỗi cập nhật ảnh: ' +
+      (error instanceof Error ? error.message : 'Lỗi không xác định'));
+  } finally {
+    setUploadingProductId(null);
+  }
+}
+
+async function deleteProduct(product: Product) {
+  if (!window.confirm('Xóa mềm "' + product.name + '" khỏi cửa hàng?\n' +
+      'Sản phẩm sẽ không hiện trên website, dữ liệu vẫn được giữ trong Supabase.')) {
+    return;
+  }
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    if (!url || !key) throw new Error('Thiếu cấu hình Supabase.');
+    const supabase = createClient(url, key);
+    const { data: auth, error: authError } = await supabase.auth.getUser();
+    if (authError || !auth.user) throw new Error('Vui lòng đăng nhập lại.');
+    const { data: admin, error: adminError } = await supabase
+      .from('admin_users').select('user_id')
+      .eq('user_id', auth.user.id).maybeSingle();
+    if (adminError || !admin) throw new Error('Không có quyền quản trị.');
+
+    const { data, error } = await supabase
+      .from('products')
+      .update({ is_active: false, deleted_at: new Date().toISOString() })
+      .eq('id', product.id)
+      .is('deleted_at', null)
+      .select('id')
+      .single();
+    if (error || !data) {
+      throw new Error(error?.message || 'Không thể xóa sản phẩm.');
+    }
+    setProducts(previous => previous.filter(item => item.id !== product.id));
+    setNotice('Đã xóa mềm sản phẩm: ' + product.name);
+  } catch (error) {
+    setNotice('Lỗi xóa sản phẩm: ' +
+      (error instanceof Error ? error.message : 'Lỗi không xác định'));
+  }
+}
+
 async function addProduct(event: FormEvent<HTMLFormElement>) {
   event.preventDefault();
+  if (uploadingNewImage) {
+    setNotice('Vui lòng đợi tải ảnh xong.');
+    return;
+  }
 
   const priceNumber = Number(price);
   const stockNumber = Number(stock);
@@ -813,6 +940,32 @@ async function addProduct(event: FormEvent<HTMLFormElement>) {
               </label>
 
               <label>
+                <strong>Tải ảnh giày trực tiếp từ máy tính</strong>
+                <input
+                  style={{ ...inputStyle, padding: 9 }}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  disabled={uploadingNewImage}
+                  onChange={(e) => {
+                    const file = e.currentTarget.files?.[0];
+                    if (file) void uploadNewProductImage(file);
+                    e.currentTarget.value = '';
+                  }}
+                />
+                <small>
+                  {uploadingNewImage ? 'Đang tải ảnh...' :
+                    'JPG, PNG, WebP · tối đa 5 MB. Link ảnh sẽ được điền tự động.'}
+                </small>
+              </label>
+              {imageUrl && (
+                <img
+                  src={imageUrl}
+                  alt="Xem trước ảnh giày"
+                  style={{ width: '100%', maxHeight: 200, objectFit: 'contain' }}
+                />
+              )}
+
+              <label>
                 <strong>Size giày</strong>
                 <input
                   style={inputStyle}
@@ -844,7 +997,7 @@ async function addProduct(event: FormEvent<HTMLFormElement>) {
                 />
               </label>
 
-              <button type="submit" style={{
+              <button type="submit" disabled={uploadingNewImage} style={{
                 padding: 15,
                 background: '#10bda9',
                 color: '#082f33',
@@ -852,7 +1005,8 @@ async function addProduct(event: FormEvent<HTMLFormElement>) {
                 borderRadius: 8,
                 fontSize: 15,
                 fontWeight: 'bold',
-                cursor: 'pointer',
+                cursor: uploadingNewImage ? 'wait' : 'pointer',
+                opacity: uploadingNewImage ? 0.6 : 1,
               }}>
                + LƯU SẢN PHẨM VÀO SUPABASE
               </button>
@@ -961,6 +1115,41 @@ async function addProduct(event: FormEvent<HTMLFormElement>) {
 >
   {product.isActive ? 'ẨN SẢN PHẨM' : 'HIỆN SẢN PHẨM'}
 </button>
+
+<label
+  style={{
+    display: 'inline-block', marginLeft: 8, marginTop: 12,
+    padding: '10px 16px', background: '#2563eb', color: 'white',
+    borderRadius: 8, fontWeight: 'bold', fontSize: 13,
+    cursor: uploadingProductId === String(product.id) ? 'wait' : 'pointer',
+    opacity: uploadingProductId === String(product.id) ? 0.6 : 1,
+  }}
+>
+  {uploadingProductId === String(product.id) ? 'ĐANG TẢI ẢNH...' : 'TẢI ẢNH MỚI'}
+  <input
+    type="file"
+    accept="image/jpeg,image/png,image/webp"
+    disabled={uploadingProductId === String(product.id)}
+    style={{ display: 'none' }}
+    onChange={(e) => {
+      const file = e.currentTarget.files?.[0];
+      if (file) void replaceProductImage(product, file);
+      e.currentTarget.value = '';
+    }}
+  />
+</label>
+<button
+  type="button"
+  onClick={() => void deleteProduct(product)}
+  style={{
+    marginLeft: 8, marginTop: 12, padding: '10px 16px',
+    background: '#991b1b', color: 'white', border: 'none',
+    borderRadius: 8, cursor: 'pointer', fontWeight: 'bold',
+  }}
+>
+  XÓA SẢN PHẨM
+</button>
+
              
 <div
   style={{
