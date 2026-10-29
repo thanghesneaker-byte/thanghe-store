@@ -992,6 +992,16 @@ async function addProduct(event: FormEvent<HTMLFormElement>) {
           }}>
             QUẢN LÝ SẢN PHẨM - SUPABASE
           </span>
+          <a href="/admin/don-hang" style={{
+            display: 'inline-block',
+            marginLeft: 12, marginTop: 12,
+            color: '#10273c', background: '#44e2cc',
+            padding: '10px 14px', borderRadius: 9,
+            textDecoration: 'none', fontWeight: 'bold',
+            fontSize: 13,
+          }}>
+            QUẢN LÝ ĐƠN HÀNG DEMO →
+          </a>
         </header>
 
         <div style={{
