@@ -11,6 +11,7 @@ export default function AdminLoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const [message, setMessage] = useState('');
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
@@ -61,6 +62,39 @@ export default function AdminLoginPage() {
       setMessage('Không thể kết nối. Vui lòng thử lại.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function sendResetEmail() {
+    const address = email.trim();
+
+    if (!address || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(address)) {
+      setMessage('Hãy nhập email quản trị trước khi yêu cầu đặt lại mật khẩu.');
+      return;
+    }
+
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    if (!url || !key) {
+      setMessage('Chưa cấu hình Supabase trên Vercel.');
+      return;
+    }
+
+    setResetLoading(true);
+    setMessage('');
+    try {
+      const supabase = createClient(url, key);
+      const redirectTo = window.location.origin + '/admin/dat-lai-mat-khau';
+      const { error } = await supabase.auth.resetPasswordForEmail(address, {
+        redirectTo,
+      });
+      if (error) throw error;
+      setMessage('Nếu email có tài khoản, Supabase sẽ gửi liên kết đặt lại mật khẩu. Hãy mở email mới nhất.');
+    } catch (error) {
+      setMessage('Không thể gửi email khôi phục: ' +
+        (error instanceof Error ? error.message : 'Lỗi không xác định'));
+    } finally {
+      setResetLoading(false);
     }
   }
 
@@ -157,6 +191,21 @@ export default function AdminLoginPage() {
             }}
           >
             {loading ? 'ĐANG KIỂM TRA...' : 'ĐĂNG NHẬP'}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => void sendResetEmail()}
+            disabled={loading || resetLoading}
+            style={{
+              display: 'block', margin: '16px auto 0',
+              border: 0, background: 'transparent',
+              color: '#0f766e', textDecoration: 'underline',
+              cursor: loading || resetLoading ? 'wait' : 'pointer',
+              fontWeight: 'bold',
+            }}
+          >
+            {resetLoading ? 'ĐANG GỬI EMAIL...' : 'QUÊN MẬT KHẨU?'}
           </button>
 
           {message && (
