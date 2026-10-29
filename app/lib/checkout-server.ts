@@ -2,13 +2,6 @@ import { createClient } from '@supabase/supabase-js';
 
 type CartLine = { id: string; size: string; qty: number };
 
-function json(body: object, status = 200) {
-  return NextResponse.json(body, {
-    status,
-    headers: { 'Cache-Control': 'no-store' },
-  });
-}
-
 export function parseItems(input: unknown): CartLine[] | null {
   if (!Array.isArray(input) || input.length === 0 || input.length > 20) return null;
   const seen = new Set<string>();
