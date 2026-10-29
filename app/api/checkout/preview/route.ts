@@ -3,6 +3,15 @@ import { parseItems, quoteCart } from '../../../lib/checkout-server';
 
 export const dynamic = 'force-dynamic';
 
+function json(body: object, status = 200) {
+  return NextResponse.json(body, {
+    status,
+    headers: { 'Cache-Control': 'no-store' },
+  });
+}
+
+
+
 
 export async function POST(request: Request) {
   try {
