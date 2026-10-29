@@ -16,6 +16,7 @@ export type Product = {
   price: number;
   oldPrice: number | null;
   image: string | null;
+  images: string[];
   tag: string;
   sizes: string[];
   stockBySize: Record<string, number>;
@@ -57,6 +58,12 @@ export function mapApiProduct(value: unknown): Product | null {
     stockBySize[variant.size] = (stockBySize[variant.size] || 0) + variant.stockQuantity;
   }
   const sizes = Object.keys(stockBySize).sort((a, b) => Number(a) - Number(b));
+  const cover = typeof row.image_url === 'string' ? row.image_url.trim() : '';
+  const extraImages = Array.isArray(row.image_urls)
+    ? row.image_urls.filter((u: unknown): u is string =>
+        typeof u === 'string' && /^https?:\/\//i.test(u))
+    : [];
+  const images = [...new Set([cover, ...extraImages].filter(Boolean))].slice(0, 10);
   return {
     id: row.id,
     slug: row.slug,
@@ -66,7 +73,8 @@ export function mapApiProduct(value: unknown): Product | null {
     description: typeof row.description === 'string' ? row.description : '',
     price,
     oldPrice,
-    image: typeof row.image_url === 'string' && row.image_url.trim() ? row.image_url : null,
+    image: images[0] ?? null,
+    images,
     tag: typeof row.category === 'string' ? row.category.toUpperCase() : 'SNEAKER',
     sizes,
     stockBySize,
