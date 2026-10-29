@@ -12,7 +12,7 @@ export function sanitizeCart(input: unknown): CartItem[] {
     const row = value as Record<string, unknown>;
     if (typeof row.id !== 'string' || row.id.length > 100 ||
         typeof row.size !== 'string' || row.size.length > 12 ||
-        !Number.isInteger(row.qty) || Number(row.qty) < 1) continue;
+        (typeof row.qty !== 'number') || !Number.isInteger(row.qty) || row.qty < 1) continue;
     const key = JSON.stringify([row.id, row.size]);
     const previous = combined.get(key);
     combined.set(key, {
