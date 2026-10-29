@@ -13,6 +13,7 @@ type Product = {
   brand: string;
   price: number;
   imageUrl: string;
+  galleryUrls: string[];
   description: string;
   sizes: string[];
 variants?: {
@@ -64,6 +65,7 @@ export default function AdminPage() {
   const [notice, setNotice] = useState('');
   const [uploadingNewImage, setUploadingNewImage] = useState(false);
   const [uploadingProductId, setUploadingProductId] = useState<string | null>(null);
+  const [galleryReady, setGalleryReady] = useState(false);
 
   const [adminSearch, setAdminSearch] = useState('');
   const [adminFilter, setAdminFilter] = useState<'all' | 'active' | 'hidden' | 'out'>('all');
@@ -206,12 +208,33 @@ is_active: boolean;
 
       const rows = (data ?? []) as unknown as ProductRow[];
 
+      // An optional query means the admin keeps working before the one-time
+      // SQL migration has been applied to the database.
+      const { data: galleryRows, error: galleryError } = await supabase
+        .from('products')
+        .select('id, image_urls')
+        .is('deleted_at', null);
+
+      if (cancelled) return;
+      setGalleryReady(!galleryError);
+
+      const galleryById = new Map<string, string[]>(
+        (galleryRows ?? []).map((item) => [
+          String(item.id),
+          Array.isArray(item.image_urls)
+            ? item.image_urls.filter((url): url is string =>
+                typeof url === 'string' && /^https?:\/\//i.test(url))
+            : [],
+        ])
+      );
+
       const productsFromDB: Product[] = rows.map((row) => ({
         id: row.id,
         name: row.name,
         brand: row.brand,
         price: Number(row.price_vnd),
         imageUrl: row.image_url ?? '',
+        galleryUrls: [...new Set([row.image_url ?? '', ...(galleryById.get(String(row.id)) ?? [])].filter(Boolean))].slice(0, 10),
         description: row.description ?? '',
        
 isActive: row.is_active,
@@ -620,34 +643,112 @@ async function uploadNewProductImage(file: File) {
   }
 }
 
-async function replaceProductImage(product: Product, file: File) {
+
+function galleryOf(product: Product): string[] {
+  return [...new Set([product.imageUrl, ...(product.galleryUrls ?? [])]
+    .filter((url) => url && /^https?:\/\//i.test(url)))].slice(0, 10);
+}
+
+async function saveProductGallery(product: Product, urls: string[]) {
+  if (!galleryReady) {
+    throw new Error('Chưa tạo cột image_urls. Hãy chạy SQL ở bước nâng cấp bộ ảnh.');
+  }
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !key) throw new Error('Thiếu cấu hình Supabase.');
+
+  const supabase = createClient(url, key);
+  const { data: auth, error: authError } = await supabase.auth.getUser();
+  if (authError || !auth.user) throw new Error('Vui lòng đăng nhập lại.');
+  const { data: admin, error: adminError } = await supabase
+    .from('admin_users').select('user_id')
+    .eq('user_id', auth.user.id).maybeSingle();
+  if (adminError || !admin) throw new Error('Không có quyền quản trị.');
+
+  const unique = [...new Set(urls.filter(Boolean))];
+  if (unique.length > 10) throw new Error('Một sản phẩm tối đa 10 ảnh.');
+  const cover = unique[0] ?? null;
+  const { data, error } = await supabase
+    .from('products')
+    .update({
+      image_url: cover,
+      image_urls: unique.slice(1),
+    })
+    .eq('id', product.id)
+    .is('deleted_at', null)
+    .select('id')
+    .single();
+  if (error || !data) {
+    throw new Error(error?.message || 'Không lưu được bộ ảnh sản phẩm.');
+  }
+
+  setProducts((previous) => previous.map((item) =>
+    item.id === product.id
+      ? { ...item, imageUrl: cover ?? '', galleryUrls: unique }
+      : item
+  ));
+}
+
+async function addProductGalleryImages(product: Product, files: File[]) {
+  if (!galleryReady) {
+    setNotice('Bộ ảnh chưa kích hoạt. Cần chạy SQL tạo cột image_urls trong Supabase.');
+    return;
+  }
+  const current = galleryOf(product);
+  if (files.length === 0) return;
+  if (current.length + files.length > 10) {
+    setNotice('Tối đa 10 ảnh/sản phẩm (đã có ' + current.length + ').');
+    return;
+  }
+  if (files.some(file => !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) ||
+      file.size === 0 || file.size > 5 * 1024 * 1024)) {
+    setNotice('Mỗi ảnh phải là JPG, PNG hoặc WebP và tối đa 5 MB.');
+    return;
+  }
   setUploadingProductId(String(product.id));
-  setNotice('Đang thay ảnh cho ' + product.name + '...');
+  let added = 0;
   try {
-    const publicUrl = await uploadImageFile(file);
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-    if (!url || !key) throw new Error('Thiếu cấu hình Supabase.');
-    const supabase = createClient(url, key);
-    const { data, error } = await supabase
-      .from('products')
-      .update({ image_url: publicUrl })
-      .eq('id', product.id)
-      .is('deleted_at', null)
-      .select('id')
-      .single();
-    if (error || !data) {
-      throw new Error(error?.message || 'Không thể lưu ảnh vào sản phẩm.');
+    for (const file of files) {
+      setNotice('Đang tải ảnh ' + (added + 1) + '/' + files.length + '...');
+      const uploadedUrl = await uploadImageFile(file);
+      current.push(uploadedUrl);
+      await saveProductGallery(product, current);
+      added += 1;
     }
-    setProducts(previous => previous.map(item =>
-      item.id === product.id ? { ...item, imageUrl: publicUrl } : item
-    ));
-    setNotice('Đã thay ảnh sản phẩm: ' + product.name);
+    setNotice('Đã thêm ' + added + ' ảnh cho ' + product.name + '.');
   } catch (error) {
-    setNotice('Lỗi cập nhật ảnh: ' +
-      (error instanceof Error ? error.message : 'Lỗi không xác định'));
+    setNotice('Đã thêm ' + added + ' ảnh. Lỗi ảnh tiếp theo: ' +
+      (error instanceof Error ? error.message : 'Không xác định'));
   } finally {
     setUploadingProductId(null);
+  }
+}
+
+async function setCoverImage(product: Product, chosenUrl: string) {
+  const urls = galleryOf(product);
+  if (!urls.includes(chosenUrl) || urls[0] === chosenUrl) return;
+  try {
+    await saveProductGallery(product, [chosenUrl, ...urls.filter(u => u !== chosenUrl)]);
+    setNotice('Đã đổi ảnh đại diện cho ' + product.name + '.');
+  } catch (error) {
+    setNotice('Lỗi chọn ảnh đại diện: ' +
+      (error instanceof Error ? error.message : 'Không xác định'));
+  }
+}
+
+async function removeGalleryImage(product: Product, image: string) {
+  const urls = galleryOf(product);
+  if (!urls.includes(image)) return;
+  if (!window.confirm(
+    'Gỡ ảnh này khỏi sản phẩm "' + product.name + '"?\n' +
+    'Tệp gốc vẫn được giữ trong Supabase Storage để tránh mất ảnh ngoài ý muốn.'
+  )) return;
+  try {
+    await saveProductGallery(product, urls.filter(u => u !== image));
+    setNotice('Đã gỡ ảnh khỏi sản phẩm. Tệp gốc vẫn còn trong Storage.');
+  } catch (error) {
+    setNotice('Lỗi gỡ ảnh: ' +
+      (error instanceof Error ? error.message : 'Không xác định'));
   }
 }
 
@@ -1164,6 +1265,76 @@ async function addProduct(event: FormEvent<HTMLFormElement>) {
                       }} />
                     )}
 
+
+                    <div style={{ marginTop: 16 }}>
+                      <strong>Bộ ảnh giày ({galleryOf(product).length}/10)</strong>
+                      {!galleryReady && (
+                        <p style={{ fontSize: 12, color: '#b45309' }}>
+                          Chưa kích hoạt bộ ảnh: cần chạy SQL tạo cột image_urls.
+                          Chức năng ảnh đại diện cũ vẫn hoạt động.
+                        </p>
+                      )}
+                      <div style={{
+                        marginTop: 10, display: 'flex',
+                        flexWrap: 'wrap', gap: 10,
+                      }}>
+                        {galleryOf(product).map((photo, index) => (
+                          <div key={photo} style={{
+                            border: index === 0 ? '2px solid #0d9488' : '1px solid #cbd5e1',
+                            padding: 6, borderRadius: 10, width: 103,
+                            background: 'white',
+                          }}>
+                            <img
+                              src={photo}
+                              alt={product.name + ' - ảnh ' + (index + 1)}
+                              style={{
+                                display: 'block', width: '100%', height: 83,
+                                objectFit: 'cover', borderRadius: 6,
+                              }}
+                            />
+                            <span style={{
+                              display: 'block', fontSize: 11,
+                              color: '#475569', margin: '6px 0',
+                            }}>
+                              {index === 0 ? 'Ảnh đại diện' : 'Ảnh ' + (index + 1)}
+                            </span>
+                            {index !== 0 && (
+                              <button
+                                type="button"
+                                disabled={!galleryReady || uploadingProductId !== null}
+                                onClick={() => void setCoverImage(product, photo)}
+                                style={{
+                                  width: '100%', padding: '5px 2px',
+                                  fontSize: 11, marginBottom: 4,
+                                  border: 0, borderRadius: 4,
+                                  background: '#d1fae5', cursor: 'pointer',
+                                }}
+                              >
+                                Chọn bìa
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              disabled={!galleryReady || uploadingProductId !== null}
+                              onClick={() => void removeGalleryImage(product, photo)}
+                              style={{
+                                width: '100%', padding: '5px 2px',
+                                fontSize: 11,
+                                border: 0, borderRadius: 4,
+                                background: '#fee2e2', cursor: 'pointer',
+                              }}
+                            >
+                              Gỡ ảnh
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <small style={{ display: 'block', marginTop: 8, color: '#64748b' }}>
+                        Để thay ảnh bìa, thêm ảnh mới rồi chọn “Chọn bìa”.
+                        “Gỡ ảnh” chỉ gỡ khỏi sản phẩm, không xóa tệp gốc trong Storage.
+                      </small>
+                    </div>
+
                     <h3>{product.name}</h3>
                     <p>Thương hiệu: {product.brand}</p>
                     <p><strong>{money(product.price)}</strong></p>
@@ -1233,15 +1404,16 @@ async function addProduct(event: FormEvent<HTMLFormElement>) {
     opacity: uploadingProductId === String(product.id) ? 0.6 : 1,
   }}
 >
-  {uploadingProductId === String(product.id) ? 'ĐANG TẢI ẢNH...' : 'TẢI ẢNH MỚI'}
+  {uploadingProductId === String(product.id) ? 'ĐANG TẢI ẢNH...' : 'THÊM NHIỀU ẢNH'}
   <input
     type="file"
     accept="image/jpeg,image/png,image/webp"
-    disabled={uploadingProductId === String(product.id)}
+    multiple
+    disabled={!galleryReady || uploadingProductId !== null || galleryOf(product).length >= 10}
     style={{ display: 'none' }}
     onChange={(e) => {
-      const file = e.currentTarget.files?.[0];
-      if (file) void replaceProductImage(product, file);
+      const files = Array.from(e.currentTarget.files ?? []);
+      if (files.length) void addProductGalleryImages(product, files);
       e.currentTarget.value = '';
     }}
   />
