@@ -14,6 +14,7 @@ export default function DemoCheckoutPage() {
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
+  const [verifiedTotal, setVerifiedTotal] = useState<number | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -61,7 +62,27 @@ export default function DemoCheckoutPage() {
         setError('Giỏ hàng đã thay đổi do tồn kho mới. Hãy kiểm tra lại giỏ hàng.');
         return;
       }
-      // Chỉ mô phỏng; tuyệt đối không POST đơn hàng hoặc lưu thông tin khách.
+      // Chỉ gửi danh sách ID, size và số lượng. Không gửi thông tin người mua.
+      const response = await fetch('/api/checkout/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
+        body: JSON.stringify({ items: valid }),
+      });
+      const result: unknown = await response.json();
+      if (!response.ok || !result || typeof result !== 'object' ||
+          (result as { ok?: boolean }).ok !== true) {
+        const message = result && typeof result === 'object'
+          ? (result as { message?: unknown }).message : null;
+        throw new Error(typeof message === 'string'
+          ? message : 'Máy chủ không xác thực được giá và tồn kho.');
+      }
+      const amount = (result as { total_vnd?: unknown }).total_vnd;
+      if (typeof amount !== 'number' || !Number.isSafeInteger(amount) || amount <= 0) {
+        throw new Error('Tổng tiền trả về từ máy chủ không hợp lệ.');
+      }
+      setVerifiedTotal(amount);
+      // Giữ nguyên DEMO: không gửi PII, không INSERT đơn, không trừ kho.
       setDone(true);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Không kiểm tra được tồn kho.');
@@ -88,10 +109,10 @@ export default function DemoCheckoutPage() {
           <section className="demoReceipt" role="status">
             <ShieldCheck size={38}/>
             <h2>ĐÃ KIỂM TRA ĐƠN DEMO</h2>
-            <p>Biểu mẫu hợp lệ, tồn kho hiện có đủ cho số lượng đã chọn.</p>
+            <p>Biểu mẫu hợp lệ. Máy chủ đã đối chiếu giá và tồn kho hiện tại với Supabase.</p>
             <p><strong>Không có đơn hàng nào được tạo hoặc gửi đi.</strong></p>
             <p>Không lưu tên, số điện thoại, địa chỉ; không trừ tồn kho hoặc thu tiền.</p>
-            <p>Tổng tạm tính: <strong>{vnd(subtotal)}</strong></p>
+            <p>Tổng tạm tính do máy chủ xác nhận: <strong>{vnd(verifiedTotal ?? subtotal)}</strong></p>
             <Link className="solidButton" href="/gio-hang">QUAY LẠI GIỎ HÀNG</Link>
           </section>
         ) : !loading && !error && lines.length > 0 && (
