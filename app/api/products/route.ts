@@ -49,11 +49,31 @@ export async function GET() {
       );
     }
 
+    // Optional gallery field: if the migration has not run yet, keep
+    // the public catalog working with its existing cover images.
+    let products = data ?? [];
+    if (products.length > 0) {
+      const ids = products.map((product) => product.id);
+      const { data: galleries, error: galleryError } = await supabase
+        .from("products")
+        .select("id, image_urls")
+        .in("id", ids)
+        .eq("is_active", true)
+        .is("deleted_at", null);
+      if (!galleryError && galleries) {
+        const galleryMap = new Map(galleries.map((row) => [row.id, row.image_urls]));
+        products = products.map((row) => ({
+          ...row,
+          image_urls: galleryMap.get(row.id) ?? [],
+        }));
+      }
+    }
+
     return NextResponse.json(
       {
         ok: true,
-        count: data?.length ?? 0,
-        products: data ?? []
+        count: products.length,
+        products
       },
       {
         headers: {
