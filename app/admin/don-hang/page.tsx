@@ -226,6 +226,13 @@ export default function AdminOrdersPage() {
           }}>
             ← Về quản lý sản phẩm
           </Link>
+          <Link href="/admin/don-hang-that" style={{
+            color: '#10273c', display: 'inline-block', marginLeft: 12,
+            marginTop: 8, background: '#fee2e2', padding: '10px 14px',
+            borderRadius: 8, fontWeight: 700, textDecoration: 'none',
+          }}>
+            Đơn hàng thật (chưa bật) →
+          </Link>
         </header>
         {access === 'checking' && <div style={card}>Đang kiểm tra quyền quản trị...</div>}
         {access === 'denied' && (
