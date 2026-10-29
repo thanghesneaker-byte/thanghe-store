@@ -65,6 +65,30 @@ export default function AdminPage() {
   const [uploadingNewImage, setUploadingNewImage] = useState(false);
   const [uploadingProductId, setUploadingProductId] = useState<string | null>(null);
 
+  const [adminSearch, setAdminSearch] = useState('');
+  const [adminFilter, setAdminFilter] = useState<'all' | 'active' | 'hidden' | 'out'>('all');
+
+  const activeCount = products.filter((p) => p.isActive).length;
+  const hiddenCount = products.length - activeCount;
+  const outOfStockCount = products.filter((p) => p.stock <= 0).length;
+  const normalizeText = (value: string) =>
+    value.toLocaleLowerCase('vi-VN')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd');
+
+  const searchTerm = normalizeText(adminSearch.trim());
+  const filteredProducts = products.filter((p) => {
+    const matchesText = normalizeText(p.name + ' ' + p.brand).includes(searchTerm);
+    const matchesStatus =
+      adminFilter === 'all' ||
+      (adminFilter === 'active' && p.isActive) ||
+      (adminFilter === 'hidden' && !p.isActive) ||
+      (adminFilter === 'out' && p.stock <= 0);
+    return matchesText && matchesStatus;
+  });
+
+
   useEffect(() => {
     let mounted = true;
 
@@ -1022,8 +1046,71 @@ async function addProduct(event: FormEvent<HTMLFormElement>) {
           <section style={cardStyle}>
             <h2>Danh sách sản phẩm Supabase</h2>
             <p style={{ color: '#64748b' }}>
-              Số sản phẩm trong phiên: {products.length}
+              Tổng sản phẩm chưa xóa: {products.length}
             </p>
+
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+              gap: 8,
+              marginBottom: 16,
+            }}>
+              {[
+                { label: 'Đang bán', count: activeCount },
+                { label: 'Đang ẩn', count: hiddenCount },
+                { label: 'Hết hàng', count: outOfStockCount },
+                { label: 'Tổng chưa xóa', count: products.length },
+              ].map((stat) => (
+                <div
+                  key={stat.label}
+                  style={{
+                    borderRadius: 8, padding: 12,
+                    background: '#f1f5f9', border: '1px solid #e2e8f0',
+                  }}
+                >
+                  <div style={{ fontSize: 13, color: '#475569' }}>{stat.label}</div>
+                  <strong style={{ fontSize: 22 }}>{stat.count}</strong>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'grid', gap: 10, marginBottom: 16 }}>
+              <label>
+                <strong style={{ display: 'block', marginBottom: 6 }}>
+                  Tìm sản phẩm
+                </strong>
+                <input
+                  type="search"
+                  style={inputStyle}
+                  placeholder="Tên giày hoặc thương hiệu..."
+                  aria-label="Tìm sản phẩm trong trang quản trị"
+                  value={adminSearch}
+                  onChange={(e) => setAdminSearch(e.target.value)}
+                />
+              </label>
+              <label>
+                <strong style={{ display: 'block', marginBottom: 6 }}>
+                  Lọc trạng thái
+                </strong>
+                <select
+                  style={inputStyle}
+                  value={adminFilter}
+                  onChange={(e) => setAdminFilter(
+                    e.target.value as 'all' | 'active' | 'hidden' | 'out'
+                  )}
+                >
+                  <option value="all">Tất cả chưa xóa</option>
+                  <option value="active">Đang bán</option>
+                  <option value="hidden">Đang ẩn</option>
+                  <option value="out">Hết hàng (tồn kho 0)</option>
+                </select>
+              </label>
+              <small style={{ color: '#64748b' }}>
+                Hiển thị {filteredProducts.length}/{products.length} sản phẩm.
+                Sản phẩm đã xóa mềm không xuất hiện ở đây.
+              </small>
+            </div>
 
             {products.length === 0 ? (
               <div style={{
@@ -1035,9 +1122,30 @@ async function addProduct(event: FormEvent<HTMLFormElement>) {
                 <p>Chưa có sản phẩm demo.</p>
                 <small>Hãy nhập sản phẩm ở biểu mẫu bên trái.</small>
               </div>
+            ) : filteredProducts.length === 0 ? (
+              <div style={{
+                padding: 24, textAlign: 'center',
+                background: '#f1f5f9', borderRadius: 12,
+              }}>
+                <p>Không tìm thấy sản phẩm phù hợp.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdminSearch('');
+                    setAdminFilter('all');
+                  }}
+                  style={{
+                    padding: '9px 16px', borderRadius: 8,
+                    background: '#10263b', color: '#fff',
+                    border: 'none', cursor: 'pointer',
+                  }}
+                >
+                  Xóa bộ lọc
+                </button>
+              </div>
             ) : (
               <div style={{ display: 'grid', gap: 16 }}>
-                {products.map((product) => (
+                {filteredProducts.map((product) => (
                   <article key={product.id} style={{
                     border: '1px solid #e2e8f0',
                     borderRadius: 12,
