@@ -68,7 +68,7 @@ export default function AdminLoginPage() {
   async function sendResetEmail() {
     const address = email.trim();
 
-    if (!address || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(address)) {
+    if (!address || !address.includes('@') || !address.includes('.')) {
       setMessage('Hãy nhập email quản trị trước khi yêu cầu đặt lại mật khẩu.');
       return;
     }
