@@ -3,6 +3,7 @@ import type {Metadata} from 'next';
 import {createClient} from '@supabase/supabase-js';
 import {mapApiProduct, vnd, type Product} from '../../lib/catalog';
 import ProductPurchase from './purchase';
+import ProductGallery from '../../components/product-gallery';
 
 export const dynamic='force-dynamic';
 
@@ -14,9 +15,18 @@ async function loadProduct(slug:string):Promise<Product|null>{
   if(!url||!key)return null;
   try{
     const supabase=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
-    const {data,error}=await supabase.from('products').select(FIELDS).eq('slug',slug).eq('is_active',true).maybeSingle();
-    if(error)return null;
-    return mapApiProduct(data);
+    const {data,error}=await supabase.from('products')
+      .select(FIELDS)
+      .eq('slug',slug)
+      .eq('is_active',true)
+      .is('deleted_at',null)
+      .maybeSingle();
+    if(error||!data)return null;
+    const {data:gallery} = await supabase.from('products')
+      .select('image_urls')
+      .eq('id',data.id)
+      .maybeSingle();
+    return mapApiProduct({...data,image_urls:gallery?.image_urls??[]});
   }catch{return null}
 }
 
@@ -34,7 +44,7 @@ export default async function ProductPage({params}:{params:Promise<{slug:string}
     <nav className="breadcrumbs"><a href="/">Trang chủ</a> / <a href="/#products">Sản phẩm</a> / {product.name}</nav>
     <div className="productDetailPage">
       <div className="pdPhoto">
-        {product.image?<img src={product.image} alt={product.name}/>:<div style={{aspectRatio:'1',display:'grid',placeItems:'center',background:'#e6eef3',color:'#60788b'}}>Chưa có ảnh sản phẩm</div>}
+        <ProductGallery images={product.images} name={product.name}/>
         <span className="tag">{product.tag}</span>
       </div>
       <div className="pdInfo"><div className="eyebrow darkEye">{product.brand} / THANGHESTORE</div>
