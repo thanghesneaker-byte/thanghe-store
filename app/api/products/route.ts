@@ -43,6 +43,15 @@ export async function GET() {
       .order("created_at", { ascending: false });
 
     if (error) {
+      // Server-only diagnostic for Preview; never expose database errors to visitors.
+      if (process.env.VERCEL_ENV !== "production") {
+        console.error("[THS_PRODUCTS_DB_ERROR]", {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        });
+      }
       return NextResponse.json(
         { ok: false, step: "database" },
         { status: 500 }
