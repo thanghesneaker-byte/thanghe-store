@@ -9,3 +9,58 @@
 /* Version 2: product detail, informational pages and catalog filters */
 .extraSelect{padding:11px 8px;background:#fff;border:1px solid #d5e2ea;color:#10273C;font-size:12px;max-width:155px}.productNameLink:hover h3{color:#168F86}.productPage{background:#F5F8FB;padding:32px 0 80px;min-height:80vh}.breadcrumbs{font-size:12px;color:#60788B;margin-bottom:30px}.breadcrumbs a:hover{text-decoration:underline}.productDetailPage{display:grid;grid-template-columns:1.1fr 1fr;gap:50px;align-items:start}.pdPhoto{position:relative;background:#e5edf2}.pdPhoto img{width:100%;aspect-ratio:1;object-fit:cover}.pdInfo h1{font:700 clamp(40px,5vw,65px)/1.08 Oswald;margin:20px 0}.pdInfo>p{line-height:1.75;color:#627384}.pdPrice{font-size:26px!important;font-weight:800;color:#10273C!important}.pdPrice s{font-size:16px;color:#8b9ca8;font-weight:400;margin-left:14px}.purchase{margin-top:25px;padding:22px 0;border-top:1px solid #d7e1e8}.purchase>strong{font-size:12px}.purchase .solidButton{margin-top:20px;max-width:370px}.purchaseSuccess{margin-top:17px;padding:16px;background:#d6fff6;font-size:13px}.purchaseSuccess a,.pdNotes a{font-weight:700;text-decoration:underline}.pdNotes{font-size:12px;color:#6e8292;margin-top:20px}.related{margin-top:80px}.related h2{font:700 36px Oswald}.relatedGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:25px}.relatedGrid a{display:flex;flex-direction:column;gap:9px}.relatedGrid img{width:100%;aspect-ratio:1;object-fit:cover}.relatedGrid small{color:#198577}.textPage{padding:60px 0 110px;max-width:850px}.textPage h1{font:700 52px Oswald}.textPage p{line-height:1.9;color:#566a78}.textPage table{width:100%;border-collapse:collapse;background:white;margin:30px 0}.textPage th,.textPage td{padding:14px;text-align:left;border:1px solid #d8e0e5}.textPage th{background:#10273C;color:white}
 @media(max-width:1000px){.tools{flex-wrap:wrap}.filters{flex-wrap:wrap}}@media(max-width:700px){.productDetailPage{grid-template-columns:1fr;gap:20px}.relatedGrid{gap:12px}.related h2{font-size:30px}.extraSelect{max-width:none;flex:1}.textPage h1{font-size:40px}.productPage{padding-top:18px}}
+
+
+/* V3 demo checkout — no real order creation or payment. */
+.cartPage{min-height:100vh;padding:36px 0 100px;background:#f5f8fb}
+.cartNav{display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:26px;font-size:13px}
+.cartNav a{color:#127d77;font-weight:700}
+.cartNav strong{font-family:'Oswald',Arial,sans-serif;font-size:21px;color:#10273C}
+.cartPage h1{font:700 clamp(35px,5vw,57px)/1.15 'Oswald',Arial,sans-serif;margin:14px 0 32px}
+.cartPage h1 span{font-size:22px;color:#60788b}
+.cartDemoNote{display:inline-block;background:#d9fff6;padding:10px 14px;font-size:11px;font-weight:800;letter-spacing:1px}
+.cartColumns{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(285px,.85fr);gap:26px;align-items:start}
+.cartLines,.cartSummary,.demoFormBox,.cartEmptyPage,.demoReceipt{background:#fff;border:1px solid #dce5eb;border-radius:12px;padding:24px}
+.cartLine{display:grid;grid-template-columns:100px minmax(0,1fr) 35px;gap:20px;border-bottom:1px solid #e1e8ed;padding:20px 0}
+.cartLine:first-child{padding-top:0}.cartLine:last-child{border-bottom:0;padding-bottom:0}
+.cartLine>img,.cartPlaceholder{width:100px;height:115px;object-fit:cover;border-radius:6px;background:#e6eef3}
+.cartPlaceholder{display:grid;place-items:center;font-size:11px;color:#6c7d89;text-align:center}
+.cartLineInfo{display:flex;flex-direction:column;align-items:flex-start;gap:9px;min-width:0}
+.cartLineInfo>a:hover{text-decoration:underline}.cartLineInfo small{color:#657a88}
+.cartQuantity{display:flex;align-items:center;border:1px solid #ccd9e2;border-radius:5px;overflow:hidden}
+.cartQuantity button{border:0;background:#f5f8fb;padding:9px}.cartQuantity button:disabled{opacity:.4;cursor:not-allowed}
+.cartQuantity span{min-width:32px;text-align:center}
+.cartRemove{align-self:start;padding:7px;border:0;background:none;color:#a32727}
+.cartSummary{position:sticky;top:90px}
+.cartSummary h2,.demoFormBox h2{font:700 25px 'Oswald',Arial,sans-serif;margin:0 0 20px}
+.cartSummary p{display:flex;justify-content:space-between;gap:16px;font-size:13px;line-height:1.6}
+.cartSummary p span{max-width:60%}
+.cartSummary strong{text-align:right;white-space:nowrap}
+.cartSummary hr{border:0;border-top:1px solid #d6e0e8;margin:22px 0}
+.cartSummary .cartSummaryTotal{font-size:15px;font-weight:700}
+.cartSummary .solidButton{margin-top:24px;text-align:center}
+.cartSummary small{display:block;color:#637b8b;font-size:12px;line-height:1.7;margin-top:14px}
+.cartAlert{background:#fff4df;border:1px solid #f1d6a2;padding:15px;line-height:1.6}
+.cartAlert a{text-decoration:underline;font-weight:bold}
+.cartEmptyPage{max-width:650px;text-align:center;margin:0 auto;padding:60px 35px}
+.cartEmptyPage>svg{margin:auto}.cartEmptyPage .solidButton{max-width:320px;margin:25px auto 0}
+.demoFormBox>p{color:#576e80;line-height:1.7;font-size:13px}
+.demoFormBox form{display:flex;flex-direction:column;gap:18px;margin-top:24px}
+.demoFormBox label{display:flex;flex-direction:column;gap:8px;font-size:13px;font-weight:700}
+.demoFormBox input,.demoFormBox textarea{border:1px solid #bdceda;border-radius:7px;padding:13px;font:inherit;background:white}
+.demoFormBox textarea{min-height:85px;resize:vertical}
+.demoFormBox button:disabled{opacity:.65}
+.demoReceipt{max-width:700px;margin:20px auto;text-align:center;line-height:1.8}
+.demoReceipt>svg{margin:auto;color:#158f78}
+.demoReceipt .solidButton{max-width:370px;margin:24px auto 0}
+.purchaseQuantity{display:flex;align-items:center;gap:12px;margin:12px 0}
+.purchaseQuantity button{border:1px solid #ccd9e2;background:#fff;width:36px;height:36px}
+.purchaseQuantity button:disabled{opacity:.35;cursor:not-allowed}
+@media(max-width:800px){
+ .cartColumns{grid-template-columns:1fr}
+ .cartSummary{position:static}
+ .cartLine{grid-template-columns:82px minmax(0,1fr) 28px;gap:12px}
+ .cartLine>img,.cartPlaceholder{width:82px;height:97px}
+ .cartLines,.cartSummary,.demoFormBox{padding:17px}
+ .cartNav strong{font-size:17px}
+}
