@@ -236,4 +236,51 @@ jobs:
           END $$;
           SQL
 
+      - name: Verify repeated checkout returns same order
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          DECLARE
+            first_order jsonb;
+            retried_order jsonb;
+            order_count integer;
+            remaining_stock integer;
+          BEGIN
+            first_order := public.store_v3_place_checkout(
+              'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid,
+              'Khach D', '0900000004',
+              'Dia chi gia lap D', '',
+              '[{"id":"11111111-1111-4111-8111-111111111111","size":"39","qty":1}]'::jsonb
+            );
+
+            retried_order := public.store_v3_place_checkout(
+              'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid,
+              'Khach D', '0900000004',
+              'Dia chi gia lap D', '',
+              '[{"id":"11111111-1111-4111-8111-111111111111","size":"39","qty":1}]'::jsonb
+            );
+
+            SELECT COUNT(*) INTO order_count
+            FROM public.store_checkout_orders_v3
+            WHERE request_id =
+              'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid;
+
+            SELECT stock_quantity INTO remaining_stock
+            FROM public.product_variants
+            WHERE id =
+              '33333333-3333-4333-8333-333333333333'::uuid;
+
+            IF first_order->>'id' IS NULL
+               OR first_order->>'id' IS DISTINCT FROM retried_order->>'id'
+               OR retried_order->>'duplicate' IS DISTINCT FROM 'true'
+               OR order_count <> 1
+               OR remaining_stock <> 1
+            THEN
+              RAISE EXCEPTION 'FAIL: checkout retry';
+            END IF;
+
+            RAISE NOTICE 'PASS: checkout retry returns same order';
+          END $$;
+          SQL
+
 
