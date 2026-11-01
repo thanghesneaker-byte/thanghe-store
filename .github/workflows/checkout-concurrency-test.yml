@@ -121,3 +121,44 @@ jobs:
             RAISE NOTICE 'PASS: one confirmed, one pending, stock=1';
           END $$;
           SQL
+          
+      - name: Verify duplicate request ID is rejected
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          DECLARE
+            duplicate_blocked boolean := false;
+            existing_count integer;
+          BEGIN
+            BEGIN
+              INSERT INTO public.store_checkout_orders_v3
+                (id, request_id, customer_name,
+                 customer_phone, customer_address,
+                 items, total_vnd)
+              SELECT
+                '88888888-8888-4888-8888-888888888888'::uuid,
+                request_id, customer_name,
+                customer_phone, customer_address,
+                items, total_vnd
+              FROM public.store_checkout_orders_v3
+              WHERE id =
+                '44444444-4444-4444-8444-444444444444'::uuid;
+            EXCEPTION WHEN unique_violation THEN
+              duplicate_blocked := true;
+            END;
+
+            SELECT COUNT(*) INTO existing_count
+            FROM public.store_checkout_orders_v3
+            WHERE request_id =
+              '66666666-6666-4666-8666-666666666666'::uuid;
+
+            IF NOT duplicate_blocked OR existing_count <> 1 THEN
+              RAISE EXCEPTION
+                'FAIL: duplicate request ID not blocked';
+            END IF;
+
+            RAISE NOTICE
+              'PASS: duplicate request ID blocked';
+          END $$;
+          SQL
+
