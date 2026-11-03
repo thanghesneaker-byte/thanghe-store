@@ -148,7 +148,9 @@ export default function DemoCheckoutPage() {
       // Giữ nguyên DEMO: không gửi PII, không INSERT đơn, không trừ kho.
       setDone(true);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Không kiểm tra được tồn kho.');
+      // Keep the demo form visible after a temporary verification failure.
+      // The token is reset below, so the next attempt must be verified again.
+      setTurnstileWarning(reason instanceof Error ? reason.message : 'Không kiểm tra được tồn kho.');
     } finally {
       setChecking(false);
       setTurnstileToken('');
