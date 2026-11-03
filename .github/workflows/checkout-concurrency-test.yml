@@ -283,7 +283,7 @@ jobs:
           END $$;
           SQL
 
-- name: Verify server prices and inventory guards
+      - name: Verify server prices and inventory guards
         run: |
           psql -v ON_ERROR_STOP=1 <<'SQL'
           INSERT INTO public.products (id, name, price_vnd, is_active)
