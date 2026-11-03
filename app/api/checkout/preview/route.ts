@@ -50,15 +50,30 @@ export async function POST(request: Request) {
         signal: AbortSignal.timeout(7000),
       });
       if (!checked.ok) {
+        // Only log the upstream HTTP status; never log tokens or secrets.
+        console.error('[THS_TURNSTILE_SITEVERIFY_HTTP]', { status: checked.status });
         return json({ ok: false, message: 'Tạm thời không xác minh được Turnstile.' }, 503);
       }
       verification = await checked.json();
-    } catch {
+    } catch (cause) {
+      // Only log the error type, without request data or secrets.
+      console.error('[THS_TURNSTILE_SITEVERIFY_NETWORK]', {
+        type: cause instanceof Error ? cause.name : 'Unknown',
+      });
       return json({ ok: false, message: 'Không kết nối được hệ thống xác minh.' }, 503);
     }
     if (!verification || typeof verification !== 'object' ||
         (verification as { success?: unknown }).success !== true ||
         (verification as { hostname?: unknown }).hostname !== new URL(request.url).hostname) {
+      const details = verification as { success?: unknown; hostname?: unknown; 'error-codes'?: unknown };
+      // Cloudflare error codes and public hostname only, never tokens or secrets.
+      console.warn('[THS_TURNSTILE_SITEVERIFY_REJECTED]', {
+        success: details.success === true,
+        hostname_matches: details.hostname === new URL(request.url).hostname,
+        codes: Array.isArray(details['error-codes'])
+          ? details['error-codes'].filter((v): v is string => typeof v === 'string').slice(0, 6)
+          : [],
+      });
       return json({ ok: false, message: 'Xác minh chống bot không hợp lệ hoặc đã hết hạn.' }, 403);
     }
 
