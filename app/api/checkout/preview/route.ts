@@ -50,8 +50,25 @@ export async function POST(request: Request) {
         signal: AbortSignal.timeout(7000),
       });
       if (!checked.ok) {
-        // Only log the upstream HTTP status; never log tokens or secrets.
-        console.error('[THS_TURNSTILE_SITEVERIFY_HTTP]', { status: checked.status });
+        // Safe diagnostic: Cloudflare's known validation error codes only.
+        // Never log the submitted token, the secret, or the raw response.
+        const errorBody: unknown = await checked.json().catch(() => null);
+        const reported = errorBody && typeof errorBody === 'object'
+          ? (errorBody as { 'error-codes'?: unknown })['error-codes']
+          : null;
+        const safeCodes = new Set([
+          'missing-input-secret', 'invalid-input-secret',
+          'missing-input-response', 'invalid-input-response',
+          'bad-request', 'timeout-or-duplicate', 'internal-error',
+        ]);
+        const codes = Array.isArray(reported)
+          ? reported.filter((code): code is string => typeof code === 'string' && safeCodes.has(code)).slice(0, 5)
+          : [];
+        console.error('[THS_TURNSTILE_SITEVERIFY_HTTP]', {
+          status: checked.status,
+          codes,
+          response_json: errorBody !== null,
+        });
         return json({ ok: false, message: 'Tạm thời không xác minh được Turnstile.' }, 503);
       }
       verification = await checked.json();
