@@ -19,6 +19,9 @@ export async function POST(request: Request) {
     if (!origin || origin !== new URL(request.url).origin) {
       return json({ ok: false, message: 'Yêu cầu khác nguồn không được chấp nhận.' }, 403);
     }
+    if (!(request.headers.get('content-type') ?? '').startsWith('application/json')) {
+      return json({ ok: false, message: 'Chỉ nhận dữ liệu JSON.' }, 415);
+    }
     const length = Number(request.headers.get('content-length') ?? 0);
     if (!Number.isFinite(length) || length > 8192) {
       return json({ ok: false, message: 'Giỏ hàng vượt giới hạn.' }, 413);
@@ -27,6 +30,38 @@ export async function POST(request: Request) {
     if (raw.length > 8192) return json({ ok: false, message: 'Dữ liệu quá lớn.' }, 413);
     const data: unknown = JSON.parse(raw);
     if (!data || typeof data !== 'object') return json({ ok: false }, 400);
+
+    // DEMO still never creates an order: protect only the server-side price/stock quote.
+    const token = (data as { turnstile_token?: unknown }).turnstile_token;
+    if (typeof token !== 'string' || token.length < 10 || token.length > 2048) {
+      return json({ ok: false, message: 'Vui lòng hoàn tất xác minh chống bot.' }, 403);
+    }
+    const secret = process.env.TURNSTILE_SECRET_KEY;
+    if (!secret) {
+      return json({ ok: false, message: 'Xác minh Turnstile chưa được cấu hình.' }, 503);
+    }
+    let verification: unknown;
+    try {
+      const checked = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ secret, response: token }),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(7000),
+      });
+      if (!checked.ok) {
+        return json({ ok: false, message: 'Tạm thời không xác minh được Turnstile.' }, 503);
+      }
+      verification = await checked.json();
+    } catch {
+      return json({ ok: false, message: 'Không kết nối được hệ thống xác minh.' }, 503);
+    }
+    if (!verification || typeof verification !== 'object' ||
+        (verification as { success?: unknown }).success !== true ||
+        (verification as { hostname?: unknown }).hostname !== new URL(request.url).hostname) {
+      return json({ ok: false, message: 'Xác minh chống bot không hợp lệ hoặc đã hết hạn.' }, 403);
+    }
+
     const cart = parseItems((data as { items?: unknown }).items);
     if (!cart) return json({ ok: false, message: 'Giỏ hàng không hợp lệ.' }, 400);
     const quote = await quoteCart(cart);
