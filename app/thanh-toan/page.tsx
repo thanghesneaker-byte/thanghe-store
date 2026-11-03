@@ -1,11 +1,32 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import Script from 'next/script';
 import Link from 'next/link';
 import { ArrowRight, ShieldCheck } from 'lucide-react';
 import type { Product } from '../lib/catalog';
 import { vnd } from '../lib/catalog';
 import { readCart, writeCart, reconcileCart, fetchLiveProducts, type CartItem } from '../lib/cart';
+
+type TurnstileApi = {
+  render: (
+    container: HTMLElement,
+    options: {
+      sitekey: string;
+      callback: (token: string) => void;
+      'expired-callback': () => void;
+      'error-callback': () => void;
+    },
+  ) => string;
+  reset: (widgetId: string) => void;
+  remove: (widgetId: string) => void;
+};
+
+declare global {
+  interface Window {
+    turnstile?: TurnstileApi;
+  }
+}
 
 export default function DemoCheckoutPage() {
   const [items, setItems] = useState<CartItem[]>([]);
@@ -15,6 +36,12 @@ export default function DemoCheckoutPage() {
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
   const [verifiedTotal, setVerifiedTotal] = useState<number | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileLoaded, setTurnstileLoaded] = useState(false);
+  const [turnstileWarning, setTurnstileWarning] = useState('');
+  const turnstileBoxRef = useRef<HTMLDivElement | null>(null);
+  const turnstileWidgetIdRef = useRef<string | null>(null);
+  const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '';
 
   useEffect(() => {
     const controller = new AbortController();
@@ -48,9 +75,45 @@ export default function DemoCheckoutPage() {
   });
   const subtotal = lines.reduce((sum, item) => sum + item.product.price * item.qty, 0);
 
+  useEffect(() => {
+    if (!turnstileLoaded || !turnstileSiteKey || loading || error || done || lines.length === 0) return;
+    const container = turnstileBoxRef.current;
+    const turnstile = window.turnstile;
+    if (!container || !turnstile) return;
+
+    let widgetId: string;
+    try {
+      widgetId = turnstile.render(container, {
+        sitekey: turnstileSiteKey,
+        callback: (token) => {
+          setTurnstileWarning('');
+          setTurnstileToken(token);
+        },
+        'expired-callback': () => {
+          setTurnstileToken('');
+          setTurnstileWarning('Xác minh đã hết hạn. Vui lòng xác minh lại.');
+        },
+        'error-callback': () => {
+          setTurnstileToken('');
+          setTurnstileWarning('Không thể xác minh. Vui lòng thử lại hoặc tải lại trang.');
+        },
+      });
+      turnstileWidgetIdRef.current = widgetId;
+    } catch {
+      setTurnstileWarning('Không tải được Turnstile. Vui lòng tải lại trang.');
+      return;
+    }
+
+    return () => {
+      try { turnstile.remove(widgetId); } catch { /* Widget already removed. */ }
+      turnstileWidgetIdRef.current = null;
+    };
+  }, [turnstileLoaded, turnstileSiteKey, loading, error, done, lines.length]);
+
   async function validateDemoOrder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (checking || loading || error || lines.length === 0) return;
+    if (checking || loading || error || !turnstileToken || lines.length === 0) return;
+    const token = turnstileToken;
     setChecking(true);
     try {
       const latest = await fetchLiveProducts();
@@ -67,7 +130,7 @@ export default function DemoCheckoutPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         cache: 'no-store',
-        body: JSON.stringify({ items: valid }),
+        body: JSON.stringify({ items: valid, turnstile_token: token }),
       });
       const result: unknown = await response.json();
       if (!response.ok || !result || typeof result !== 'object' ||
@@ -88,11 +151,22 @@ export default function DemoCheckoutPage() {
       setError(reason instanceof Error ? reason.message : 'Không kiểm tra được tồn kho.');
     } finally {
       setChecking(false);
+      setTurnstileToken('');
+      const widgetId = turnstileWidgetIdRef.current;
+      if (widgetId) window.turnstile?.reset(widgetId);
     }
   }
 
   return (
     <main className="cartPage">
+      {turnstileSiteKey && (
+        <Script
+          src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
+          strategy="afterInteractive"
+          onReady={() => setTurnstileLoaded(true)}
+          onError={() => setTurnstileWarning('Không tải được dịch vụ Turnstile.')}
+        />
+      )}
       <div className="wrap">
         <div className="cartNav">
           <Link href="/gio-hang">← Quay lại giỏ hàng</Link>
@@ -137,7 +211,20 @@ export default function DemoCheckoutPage() {
                   <textarea name="note" maxLength={300} autoComplete="off"
                     placeholder="Ví dụ: giao buổi chiều (demo)"/>
                 </label>
-                <button className="solidButton" type="submit" disabled={checking}>
+                <div style={{ margin: '16px 0' }}>
+                  <p><strong>Xác minh chống bot (Cloudflare Turnstile)</strong></p>
+                  {turnstileSiteKey ? (
+                    <>
+                      <div ref={turnstileBoxRef} aria-label="Cloudflare Turnstile" />
+                      {!turnstileLoaded && <small>Đang tải bước xác minh...</small>}
+                      {turnstileWarning && <p role="alert" className="cartAlert">{turnstileWarning}</p>}
+                    </>
+                  ) : (
+                    <p role="alert" className="cartAlert">Turnstile chưa được cấu hình cho bản thử nghiệm.</p>
+                  )}
+                </div>
+                <button className="solidButton" type="submit"
+                  disabled={checking || !turnstileToken || !turnstileSiteKey}>
                   {checking ? 'ĐANG KIỂM TRA TỒN KHO...' : 'KIỂM TRA ĐƠN HÀNG DEMO'} <ArrowRight size={16}/>
                 </button>
               </form>
