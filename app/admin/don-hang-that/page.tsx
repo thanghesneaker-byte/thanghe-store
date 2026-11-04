@@ -16,7 +16,9 @@ const label: Record<Status, string> = {
   shipping: 'Đang giao', completed: 'Hoàn thành', cancelled: 'Đã hủy',
 };
 const next: Record<Status, Status[]> = {
-  pending: ['confirmed', 'cancelled'], confirmed: ['shipping'],
+
+  pending: ['confirmed', 'cancelled'], confirmed: ['shipping', 'cancelled'],
+
   shipping: ['completed'], completed: [], cancelled: [],
 };
 const money = (n: number) => new Intl.NumberFormat('vi-VN', {
@@ -83,6 +85,26 @@ export default function LiveOrdersPage() {
 
   async function transition(order: Order, status: Status) {
     if (working) return;
+    
+    let cancelReason = '';
+
+    if (status === 'cancelled') {
+      const input = window.prompt(
+        order.status === 'confirmed'
+          ? 'HỦY ĐƠN ĐÃ XÁC NHẬN: Hệ thống sẽ kiểm tra dữ liệu trừ kho trước khi hoàn kho. Nhập lý do hủy (5–500 ký tự):'
+          : 'Nhập lý do hủy đơn (5–500 ký tự):'
+      );
+
+      if (input === null) return;
+
+      cancelReason = input.trim();
+
+      if (cancelReason.length < 5 || cancelReason.length > 500) {
+        setError('Lý do hủy phải từ 5 đến 500 ký tự.');
+        return;
+      }
+    }
+
     const confirmMessage = status === 'confirmed'
       ? 'XÁC NHẬN ĐƠN THẬT?\nSupabase sẽ trừ tồn kho đúng size trong một giao dịch. Không thực hiện nếu chưa kiểm tra kỹ.'
       : 'Chuyển đơn sang "' + label[status] + '"?';
@@ -98,8 +120,14 @@ export default function LiveOrdersPage() {
           Authorization: 'Bearer ' + token,
           'Content-Type': 'application/json',
         },
+      
         body: JSON.stringify({
-          id: order.id, expected: order.status, next: status,
+          id: order.id,
+          expected: order.status,
+          next: status,
+          reason: cancelReason,
+        }),
+
         }),
       });
       const body: unknown = await res.json();
