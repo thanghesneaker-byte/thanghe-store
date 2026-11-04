@@ -128,7 +128,7 @@ export default function LiveOrdersPage() {
           reason: cancelReason,
         }),
 
-        }),
+         
       });
       const body: unknown = await res.json();
       if (!res.ok || !body || typeof body !== 'object' ||
