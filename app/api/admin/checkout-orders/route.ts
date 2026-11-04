@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 const nextStatuses: Record<string, string[]> = {
   pending: ['confirmed', 'cancelled'],
-  confirmed: ['shipping'],
+   confirmed: ['shipping', 'cancelled'],
   shipping: ['completed'],
   completed: [],
   cancelled: [],
@@ -90,18 +90,43 @@ export async function PATCH(request: Request) {
         !nextStatuses[v.expected]?.includes(v.next)) {
       return response({ ok: false, message: 'Chuyển trạng thái không hợp lệ.' }, 400);
     }
-    const { data, error } = await db.rpc('store_v3_transition_checkout', {
-      p_order_id: v.id,
-      p_expected_status: v.expected,
-      p_next_status: v.next,
-    });
+     
+    const cancelReason =
+      typeof v.reason === 'string' ? v.reason.trim() : '';
+
+    if (
+      v.next === 'cancelled' &&
+      (cancelReason.length < 5 || cancelReason.length > 500)
+    ) {
+      return response({
+        ok: false,
+        message: 'Vui lòng nhập lý do hủy từ 5 đến 500 ký tự.',
+      }, 400);
+    }
+
+    const isCancellation = v.next === 'cancelled';
+
+    const { data, error } = isCancellation
+      ? await db.rpc('store_v3_cancel_checkout', {
+          p_order_id: v.id,
+          p_expected_status: v.expected,
+          p_reason: cancelReason,
+        })
+      : await db.rpc('store_v3_transition_checkout', {
+          p_order_id: v.id,
+          p_expected_status: v.expected,
+          p_next_status: v.next,
+        });
+
     if (error || data !== v.next) {
       return response({
         ok: false,
-        message: 'Không thể xác nhận. Đơn có thể đã đổi trạng thái hoặc không đủ tồn kho. Tải lại và kiểm tra.',
+        message: 'Không thể cập nhật đơn. Vui lòng kiểm tra trạng thái và tồn kho.',
       }, 409);
     }
+
     return response({ ok: true, status: data });
+
   } catch {
     return response({ ok: false, message: 'Yêu cầu không hợp lệ.' }, 400);
   }
