@@ -3,8 +3,10 @@ import { useState } from 'react';
 import Link from 'next/link';
 import type { Product } from '../../lib/catalog';
 import { addToCart } from '../../lib/cart';
+import { useCheckoutMode } from '../../lib/checkout-mode';
 
 export default function ProductPurchase({ product }: { product: Product }) {
+  const checkoutMode = useCheckoutMode();
   const [size, setSize] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
@@ -53,7 +55,7 @@ export default function ProductPurchase({ product }: { product: Product }) {
     )}
     <button type="button" className="solidButton"
       disabled={size === null || stock < 1} onClick={add}>
-      THÊM VÀO GIỎ HÀNG DEMO
+      {checkoutMode === 'live' ? 'THÊM VÀO GIỎ HÀNG' : 'THÊM VÀO GIỎ HÀNG DEMO'}
     </button>
     {error && <p role="alert" className="cartAlert">{error}</p>}
     {added && <div className="purchaseSuccess" role="status">
