@@ -249,7 +249,7 @@ export default function DemoCheckoutPage() {
         <h1>{isLive ? 'THÔNG TIN ĐẶT HÀNG' : 'THÔNG TIN ĐẶT HÀNG THỬ NGHIỆM'}</h1>
         {loading && <p>Đang kiểm tra sản phẩm và tồn kho...</p>}
         {error && <p role="alert" className="cartAlert">{error} <Link href="/gio-hang">Kiểm tra giỏ hàng</Link></p>}
-        {!loading && !error && lines.length === 0 && (
+        {!loading && !error && !done && lines.length === 0 && (
           <p>Giỏ hàng trống. <Link href="/#products">Chọn giày để thử đặt hàng →</Link></p>
         )}
         {done ? (
@@ -291,13 +291,13 @@ export default function DemoCheckoutPage() {
                     title="Nhập số điện thoại gồm 10 chữ số bắt đầu bằng 0"
                     autoComplete={isLive ? "tel" : "off"} placeholder="0900000000"/>
                 </label>
-                <label>Địa chỉ giao hàng thử nghiệm
+                <label>{isLive ? 'Địa chỉ giao hàng' : 'Địa chỉ giao hàng thử nghiệm'}
                   <textarea name="address" required minLength={10} maxLength={300}
                     autoComplete={isLive ? "street-address" : "off"} placeholder={isLive ? "Số nhà, đường, phường/xã, tỉnh/thành" : "Địa chỉ giả lập để kiểm tra biểu mẫu"}/>
                 </label>
                 <label>Ghi chú (không bắt buộc)
                   <textarea name="note" maxLength={300} autoComplete="off"
-                    placeholder="Ví dụ: giao buổi chiều (demo)"/>
+                    placeholder={isLive ? "Ví dụ: giao giờ hành chính" : "Ví dụ: giao buổi chiều (demo)"}/>
                 </label>
                 <div style={{ margin: '16px 0' }}>
                   <p><strong>Xác minh chống bot (Cloudflare Turnstile)</strong></p>
@@ -308,7 +308,7 @@ export default function DemoCheckoutPage() {
                       {turnstileWarning && <p role="alert" className="cartAlert">{turnstileWarning}</p>}
                     </>
                   ) : (
-                    <p role="alert" className="cartAlert">Turnstile chưa được cấu hình cho bản thử nghiệm.</p>
+                    <p role="alert" className="cartAlert">Turnstile chưa được cấu hình cho website.</p>
                   )}
                 </div>
                 <button className="solidButton" type="submit"
