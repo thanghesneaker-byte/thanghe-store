@@ -6,8 +6,10 @@ import { Minus, Plus, Trash2, ShoppingBag, ArrowRight } from 'lucide-react';
 import type { Product } from '../lib/catalog';
 import { vnd } from '../lib/catalog';
 import { readCart, writeCart, reconcileCart, fetchLiveProducts, type CartItem } from '../lib/cart';
+import { useCheckoutMode } from '../lib/checkout-mode';
 
 export default function CartPage() {
+  const mode = useCheckoutMode();
   const [items, setItems] = useState<CartItem[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,7 +66,7 @@ export default function CartPage() {
           <Link href="/">← Tiếp tục mua giày</Link>
           <strong>THANGHESTORE V3</strong>
         </div>
-        <p className="cartDemoNote">BẢN THỬ NGHIỆM — CHƯA NHẬN ĐƠN HÀNG THẬT</p>
+        <p className="cartDemoNote">{mode === "live" ? "GỬI YÊU CẦU ĐẶT HÀNG — CHỜ XÁC NHẬN" : "BẢN THỬ NGHIỆM — CHƯA NHẬN ĐƠN HÀNG THẬT"}</p>
         <h1>GIỎ HÀNG <span>({count})</span></h1>
         {loading && <p>Đang kiểm tra tồn kho từ Supabase...</p>}
         {error && <p role="alert" className="cartAlert">{error} Vui lòng tải lại trang.</p>}
@@ -113,9 +115,9 @@ export default function CartPage() {
               <hr/>
               <p className="cartSummaryTotal">Tổng tạm tính <strong>{vnd(amount)}</strong></p>
               <Link className="solidButton" href="/thanh-toan">
-                TIẾP TỤC ĐẶT HÀNG DEMO <ArrowRight size={17}/>
+                {mode === "live" ? "TIẾP TỤC ĐẶT HÀNG" : "TIẾP TỤC ĐẶT HÀNG DEMO"} <ArrowRight size={17}/>
               </Link>
-              <small>Không giữ hàng, không thanh toán và không tạo đơn thật.</small>
+              <small>{mode === "live" ? "Đơn hàng chờ xác nhận; chưa thu tiền và chưa bao gồm phí giao hàng." : "Không giữ hàng, không thanh toán và không tạo đơn thật."}</small>
             </aside>
           </div>
         )}
