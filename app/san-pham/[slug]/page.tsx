@@ -51,7 +51,7 @@ export default async function ProductPage({params}:{params:Promise<{slug:string}
         <h1>{product.name}</h1><p className="pdPrice">{vnd(product.price)} {product.oldPrice!==null&&<s>{vnd(product.oldPrice)}</s>}</p>
         <p>{product.description}</p>
         <ProductPurchase product={product}/>
-        <div className="pdNotes"><p>• Đây là bản thử nghiệm, chưa nhận đơn hàng thật.</p>
+        <div className="pdNotes"><p>• Đơn hàng chỉ được xử lý sau khi cửa hàng xác nhận.</p>
         <p>• Tồn kho hiển thị dựa trên dữ liệu Supabase; chưa có cơ chế giữ hàng.</p>
         <p>• <a href="/huong-dan-chon-size">Xem hướng dẫn chọn size →</a></p></div>
       </div>
