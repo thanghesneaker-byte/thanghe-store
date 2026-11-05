@@ -8,7 +8,10 @@ export const dynamic = 'force-dynamic';
 // TWO independent server-side switches, both OFF by default.
 // Never use NEXT_PUBLIC_ flags for enabling paid/real actions.
 const enabled = () => process.env.STORE_REAL_CHECKOUT_ENABLED === 'true' &&
-  process.env.STORE_CHECKOUT_LIVE_APPROVED === 'true';
+  process.env.STORE_CHECKOUT_LIVE_APPROVED === 'true' &&
+  !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  !!(process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY) &&
+  !!process.env.TURNSTILE_SECRET_KEY;
 
 function reply(body: object, status = 200) {
   return NextResponse.json(body, {
