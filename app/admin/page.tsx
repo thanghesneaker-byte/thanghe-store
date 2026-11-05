@@ -1002,6 +1002,16 @@ async function addProduct(event: FormEvent<HTMLFormElement>) {
           }}>
             QUẢN LÝ ĐƠN HÀNG DEMO →
           </a>
+          <a href="/admin/don-hang-that" style={{
+            display: 'inline-block',
+            marginLeft: 12, marginTop: 12,
+            color: '#10273c', background: '#fff',
+            padding: '10px 14px', borderRadius: 9,
+            textDecoration: 'none', fontWeight: 'bold',
+            fontSize: 13,
+          }}>
+            QUẢN LÝ ĐƠN HÀNG THẬT →
+          </a>
         </header>
 
         <div style={{
