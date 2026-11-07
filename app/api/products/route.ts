@@ -1,4 +1,4 @@
-
+ 
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -8,15 +8,30 @@ export async function GET() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-  if (!url || !key) {
-    return NextResponse.json(
-      { ok: false, step: "environment" },
-      { status: 500 }
+  const fail = (step: string) =>
+    NextResponse.json(
+      { ok: false, step },
+      {
+        status: 500,
+        headers: { "Cache-Control": "no-store" },
+      }
     );
+
+  if (!url || !key) {
+    console.error("[THS_PRODUCTS_ENV_MISSING]", {
+      hasUrl: Boolean(url),
+      hasKey: Boolean(key),
+    });
+    return fail("environment");
   }
 
   try {
-    const supabase = createClient(url, key);
+    const supabase = createClient(url, key, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
 
     const { data, error } = await supabase
       .from("products")
@@ -43,38 +58,55 @@ export async function GET() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      // Server-only diagnostic for Preview; never expose database errors to visitors.
-      if (process.env.VERCEL_ENV !== "production") {
-        console.error("[THS_PRODUCTS_DB_ERROR]", {
-          code: error.code,
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-        });
-      }
-      return NextResponse.json(
-        { ok: false, step: "database" },
-        { status: 500 }
-      );
+      console.error("[THS_PRODUCTS_DB_ERROR]", {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      });
+
+      return fail("database");
     }
 
-    // Optional gallery field: if the migration has not run yet, keep
-    // the public catalog working with its existing cover images.
-    let products = data ?? [];
+    let products = (data ?? []).map((product) => ({
+      ...product,
+      image_urls: product.image_url
+        ? [product.image_url]
+        : [],
+    }));
+
     if (products.length > 0) {
-      const ids = products.map((product) => product.id);
-      const { data: galleries, error: galleryError } = await supabase
-        .from("products")
-        .select("id, image_urls")
-        .in("id", ids)
-        .eq("is_active", true)
-        .is("deleted_at", null);
-      if (!galleryError && galleries) {
-        const galleryMap = new Map(galleries.map((row) => [row.id, row.image_urls]));
-        products = products.map((row) => ({
-          ...row,
-          image_urls: galleryMap.get(row.id) ?? [],
-        }));
+      const ids = products.map((p) => p.id);
+
+      const { data: galleries, error: galleryError } =
+        await supabase
+          .from("products")
+          .select("id, image_urls")
+          .in("id", ids)
+          .eq("is_active", true)
+          .is("deleted_at", null);
+
+      if (galleryError) {
+        console.error("[THS_PRODUCTS_GALLERY_ERROR]", {
+          code: galleryError.code,
+          message: galleryError.message,
+        });
+      } else if (galleries) {
+        const galleryMap = new Map(
+          galleries.map((row) => [row.id, row.image_urls])
+        );
+
+        products = products.map((product) => {
+          const images = galleryMap.get(product.id);
+
+          return {
+            ...product,
+            image_urls:
+              Array.isArray(images) && images.length > 0
+                ? images
+                : product.image_urls,
+          };
+        });
       }
     }
 
@@ -82,18 +114,20 @@ export async function GET() {
       {
         ok: true,
         count: products.length,
-        products
+        products,
       },
       {
-        headers: {
-          "Cache-Control": "no-store"
-        }
+        headers: { "Cache-Control": "no-store" },
       }
     );
-  } catch {
-    return NextResponse.json(
-      { ok: false, step: "connection" },
-      { status: 500 }
-    );
+  } catch (error) {
+    console.error("[THS_PRODUCTS_CONNECTION_ERROR]", {
+      message:
+        error instanceof Error
+          ? error.message
+          : "Unknown error",
+    });
+
+    return fail("connection");
   }
 }
