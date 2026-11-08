@@ -210,7 +210,7 @@ export default function LiveOrdersPage() {
                 disabled={loading || !!error}
                 onClick={() => { setFilter(card.status ?? 'all'); setSearch(''); }}
                 style={{ textAlign: 'left', background: 'white', border: '1px solid #d9e4ed',
-                  borderLeft: `5px solid ${card.accent}`, borderRadius: 10, padding: 15,
+                  borderLeft: '5px solid ' + card.accent, borderRadius: 10, padding: 15,
                   color: '#10273c', cursor: 'pointer', opacity: loading || !!error ? 0.6 : 1 }}>
                 <span style={{ display: 'block', fontSize: 13, marginBottom: 8 }}>{card.title}</span>
                 <strong style={{ fontSize: 26 }}>{loading || !!error ? '—' : card.value}</strong>
