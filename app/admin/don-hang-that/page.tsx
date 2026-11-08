@@ -11,7 +11,17 @@ type Order = {
   customer_name: string; customer_phone: string; customer_address: string;
   note: string; total_vnd: number; items: Line[];
 };
+ 
+type OrderHistory = {
+  order_id: string;
+  old_status: Status;
+  new_status: Status;
+  reason: string;
+  created_at: string;
+};
+
 const label: Record<Status, string> = {
+
   pending: 'Chờ xác nhận', confirmed: 'Đã xác nhận',
   shipping: 'Đang giao', completed: 'Hoàn thành', cancelled: 'Đã hủy',
 };
@@ -43,6 +53,9 @@ async function authToken(): Promise<string> {
 export default function LiveOrdersPage() {
   const [mode, setMode] = useState('demo');
   const [orders, setOrders] = useState<Order[]>([]);
+ 
+const [history, setHistory] = useState<OrderHistory[]>([]);
+ 
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(true);
@@ -69,6 +82,13 @@ export default function LiveOrdersPage() {
         throw new Error(typeof message === 'string' ? message : 'Không tải được đơn hàng.');
       }
       setOrders((body as { orders: Order[] }).orders);
+     
+setHistory(
+  Array.isArray((body as { history?: unknown }).history)
+    ? (body as { history: OrderHistory[] }).history
+    : []
+);
+
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Có lỗi khi tải đơn hàng.');
     } finally {
@@ -311,6 +331,30 @@ export default function LiveOrdersPage() {
                     </li>)}
                   </ul>
                   <small>Mã đầy đủ: {order.id}</small>
+                 
+<div style={{ marginTop: 20 }}>
+  <h4>Lịch sử trạng thái đơn hàng</h4>
+  {history.filter(h => h.order_id === order.id).length === 0 ? (
+    <p>Chưa có lịch sử thay đổi trạng thái.</p>
+  ) : (
+    <ul>
+      {history
+        .filter(h => h.order_id === order.id)
+        .map((h, i) => (
+          <li key={i} style={{ marginBottom: 10 }}>
+            <strong>
+              {label[h.old_status]} → {label[h.new_status]}
+            </strong>
+            <div>
+              {new Date(h.created_at).toLocaleString('vi-VN')}
+            </div>
+            {h.reason && <div>Lý do: {h.reason}</div>}
+          </li>
+        ))}
+    </ul>
+  )}
+</div>
+
                 </div>}
               </article>
             ))}
