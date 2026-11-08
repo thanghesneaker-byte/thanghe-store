@@ -37,6 +37,8 @@ export default function DemoCheckoutPage() {
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
   const [orderId, setOrderId] = useState('');
+  const [vietQrUrl, setVietQrUrl] = useState('');
+const [vietQrError, setVietQrError] = useState('');
   const requestIdRef = useRef('');
   const [verifiedTotal, setVerifiedTotal] = useState<number | null>(null);
   const [turnstileToken, setTurnstileToken] = useState('');
@@ -47,6 +49,29 @@ export default function DemoCheckoutPage() {
   const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '';
   const mode = useCheckoutMode();
   const isLive = mode === 'live';
+  
+async function loadVietQr(id: string) {
+  setVietQrUrl('');
+  setVietQrError('');
+
+  try {
+    const response = await fetch(
+      `/api/vietqr?orderId=${encodeURIComponent(id)}`,
+      { cache: 'no-store' }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok || !data.ok || !data.qr_url) {
+      throw new Error('Chưa lấy được thông tin VietQR.');
+    }
+
+    setVietQrUrl(data.qr_url);
+  } catch {
+    setVietQrError('Không thể tải VietQR.');
+  }
+}
+
 
   useEffect(() => {
     const controller = new AbortController();
@@ -214,9 +239,11 @@ export default function DemoCheckoutPage() {
         throw new Error('Máy chủ chưa trả về xác nhận đơn hàng hợp lệ.');
       }
       setOrderId(receipt.order_id);
-      setVerifiedTotal(receipt.total_vnd);
-      setDone(true);
-      setItems(writeCart([]));
+setVerifiedTotal(receipt.total_vnd);
+setDone(true);
+setItems(writeCart([]));
+
+void loadVietQr(receipt.order_id);
     } catch (reason) {
       setTurnstileWarning(reason instanceof Error
         ? reason.message : 'Không thể gửi yêu cầu đặt hàng. Vui lòng thử lại.');
