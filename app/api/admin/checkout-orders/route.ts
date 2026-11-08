@@ -59,7 +59,30 @@ export async function GET(request: Request) {
   if (error) return response({
     ok: false, message: 'Không tải được danh sách. Kiểm tra xem đã chạy migration đơn hàng thật chưa.',
   }, 503);
-  return response({ ok: true, orders: data || [] });
+  
+const orders = data || [];
+const ids = orders.map(order => order.id);
+
+if (ids.length === 0) {
+  return response({ ok: true, orders, history: [] });
+}
+
+const { data: history, error: historyError } = await db
+  .from('store_checkout_status_history_v3')
+  .select('order_id, old_status, new_status, reason, created_at')
+  .in('order_id', ids)
+  .order('created_at', { ascending: true })
+  .limit(1000);
+
+if (historyError) {
+  return response({
+    ok: false,
+    message: 'Không tải được lịch sử trạng thái đơn hàng.',
+  }, 503);
+}
+
+return response({ ok: true, orders, history: history || [] });
+ 
 }
 
 export async function PATCH(request: Request) {
