@@ -262,6 +262,27 @@ export default function DemoCheckoutPage() {
                 <p>Mã đơn hàng: <strong>{orderId}</strong></p>
                 <p>Tạm tính chưa gồm phí vận chuyển: <strong>{vnd(verifiedTotal ?? 0)}</strong></p>
                 <p>Cửa hàng sẽ liên hệ xác nhận phí vận chuyển và phương thức thanh toán. Chưa thu tiền trực tuyến.</p>
+
+ 
+{orderId && (
+  <div style={{ marginTop: 24, textAlign: 'center' }}>
+    <h3>THANH TOÁN VIETQR</h3>
+    <p>Thông tin chuyển khoản cho đơn hàng:</p>
+    <a
+      href={`/api/vietqr?orderId=${encodeURIComponent(orderId)}`}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      Xem thông tin thanh toán VietQR
+    </a>
+    <p>
+      Chỉ chuyển khoản sau khi cửa hàng xác nhận
+      tổng tiền và phí vận chuyển.
+    </p>
+  </div>
+)}
+
+
               </>
             ) : (
               <>
