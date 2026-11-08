@@ -1,3 +1,4 @@
+ ```
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -154,6 +155,26 @@ export default function LiveOrdersPage() {
       .some(s => s.toLocaleLowerCase('vi-VN').includes(q))
   );
 
+  // Thống kê chỉ trên tối đa 100 đơn mà API đã tải.
+  const counts = {
+    pending: orders.filter(o => o.status === 'pending').length,
+    confirmed: orders.filter(o => o.status === 'confirmed').length,
+    shipping: orders.filter(o => o.status === 'shipping').length,
+    completed: orders.filter(o => o.status === 'completed').length,
+    cancelled: orders.filter(o => o.status === 'cancelled').length,
+  };
+  const completedRevenue = orders
+    .filter(o => o.status === 'completed')
+    .reduce((sum, o) => sum + (Number.isFinite(o.total_vnd) ? o.total_vnd : 0), 0);
+  const statCards: { title: string; value: string; status?: Status; accent: string }[] = [
+    { title: 'Tổng đơn đã tải', value: String(orders.length), accent: '#10273c' },
+    { title: 'Chờ xác nhận', value: String(counts.pending), status: 'pending', accent: '#b45309' },
+    { title: 'Đã xác nhận', value: String(counts.confirmed), status: 'confirmed', accent: '#0369a1' },
+    { title: 'Đang giao', value: String(counts.shipping), status: 'shipping', accent: '#7c3aed' },
+    { title: 'Hoàn thành', value: String(counts.completed), status: 'completed', accent: '#047857' },
+    { title: 'Đã hủy', value: String(counts.cancelled), status: 'cancelled', accent: '#b91c1c' },
+  ];
+
   return (
     <main style={{
       minHeight: '100vh', background: '#f1f5f9', padding: '30px 14px 90px',
@@ -177,6 +198,36 @@ export default function LiveOrdersPage() {
             ? 'CẢNH BÁO: Máy chủ đang bật nhận đơn thật — cần kiểm tra cấu hình và vận hành.'
             : 'ĐÃ KHÓA NHẬN ĐƠN THẬT. Trang này chỉ để chuẩn bị và kiểm tra hệ thống.'}
         </p>
+        <section aria-label="Thống kê đơn hàng" style={{ marginTop: 20 }}>
+          <h2 style={{ fontSize: 21, marginBottom: 12 }}>Tổng quan đơn hàng</h2>
+          <p style={{ color: '#475569', marginTop: 0 }}>
+            Thống kê từ tối đa 100 đơn gần nhất do API trả về, không phải toàn bộ lịch sử.
+            {loading ? ' Đang cập nhật...' : ''}
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(155px, 1fr))', gap: 12 }}>
+            {statCards.map(card => (
+              <button key={card.title} type="button"
+                disabled={loading || !!error}
+                onClick={() => { setFilter(card.status ?? 'all'); setSearch(''); }}
+                style={{ textAlign: 'left', background: 'white', border: '1px solid #d9e4ed',
+                  borderLeft: `5px solid ${card.accent}`, borderRadius: 10, padding: 15,
+                  color: '#10273c', cursor: 'pointer', opacity: loading || !!error ? 0.6 : 1 }}>
+                <span style={{ display: 'block', fontSize: 13, marginBottom: 8 }}>{card.title}</span>
+                <strong style={{ fontSize: 26 }}>{loading || !!error ? '—' : card.value}</strong>
+              </button>
+            ))}
+          </div>
+          <div style={{ background: 'white', border: '1px solid #d9e4ed', borderRadius: 10,
+            padding: 20, marginTop: 12 }}>
+            <strong>Giá trị đơn đã hoàn thành (trong dữ liệu đã tải)</strong>
+            <p style={{ fontSize: 28, fontWeight: 700, color: '#047857', margin: '10px 0' }}>
+              {loading || !!error ? '—' : money(completedRevenue)}
+            </p>
+            <small style={{ color: '#64748b' }}>
+              Chỉ cộng đơn có trạng thái Hoàn thành; chưa trừ chi phí, hoàn tiền hoặc đối soát thanh toán.
+            </small>
+          </div>
+        </section>
         <section style={{
           background: 'white', border: '1px solid #d9e4ed',
           padding: 22, borderRadius: 12, marginTop: 20,
@@ -214,7 +265,7 @@ export default function LiveOrdersPage() {
             padding: 14, borderRadius: 7,
           }}>{notice}</p>}
           {!loading && !error && filtered.length === 0 &&
-            <p>Chưa có đơn hàng nào. Đây là trạng thái bình thường khi hệ thống chưa nhận đơn thật.</p>}
+            <p>{orders.length === 0 ? 'Chưa có đơn hàng nào trong dữ liệu đã tải.' : 'Không có đơn hàng phù hợp với bộ lọc.'}</p>}
           <div style={{ display: 'grid', gap: 13 }}>
             {filtered.map(order => (
               <article key={order.id} style={{
